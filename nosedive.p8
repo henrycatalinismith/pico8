@@ -70,7 +70,8 @@ function init_helicopter()
 end
 
 function init_hitbox()
-  hitbox_box = box(helicopter_position + xy(8, 0), xy(8, 8))
+  hitbox_offset = xy(-4, -4)
+  hitbox_box = box(helicopter_position + hitbox_offset, xy(8, 8))
 end
 
 function init_rotor()
@@ -149,7 +150,7 @@ function update_collision()
   collision_point = nil
 
   for i = 1, hitbox_box.size.x do
-    local j = hitbox_box.position.x - camera_position.x + i
+    local j = hitbox_box.position.x - camera_position.x + (hitbox_box.size.x - i)
 
     local roof = cave_roof[j]
     if hitbox_box:contains(roof) then
@@ -166,8 +167,34 @@ function update_collision()
 
   if collision_point ~= nil then
     printh("boom")
-    _update = nil
-    _draw = nil
+
+    camera(camera_position.x, camera_position.y)
+    line(
+      helicopter_position.x,
+      helicopter_position.y,
+      collision_point.x,
+      collision_point.y,
+      8
+    )
+
+    local dx = collision_point.x - helicopter_position.x
+    local dy = -(collision_point.y - helicopter_position.y)
+    local angle = atan2(dx, dy)
+
+    printh(helicopter_position:angle(collision_point))
+
+    local p = xy(
+      helicopter_position.x + 8 * cos(angle),
+      helicopter_position.y - 8 * sin(angle)
+    )
+
+    circ(p.x, p.y, 2, 8)
+
+    if collision_point:below(helicopter_position) then
+      helicopter_velocity.y = -2
+    else
+      helicopter_velocity.y = 2
+    end
   end
 end
 
@@ -186,8 +213,7 @@ function update_helicopter()
 end
 
 function update_hitbox()
-  hitbox_box:move(helicopter_position + xy(4, 0))
-
+  hitbox_box:move(helicopter_position + hitbox_offset)
 end
 
 function update_rotor()
@@ -218,7 +244,7 @@ function update_smoke()
       puff_radius = 1
     end
     add(smoke_puffs, {
-      position = helicopter_position + xy(8, 4),
+      position = helicopter_position - xy(8, 0),
       velocity = helicopter_velocity,
       radius = puff_radius,
       age = 0,
@@ -322,8 +348,8 @@ function draw_helicopter()
     0,
     16,
     8,
-    helicopter_position.x,
-    helicopter_position.y
+    helicopter_position.x - 8,
+    helicopter_position.y - 4
   )
 
   sspr(
@@ -331,16 +357,23 @@ function draw_helicopter()
     8 + loop(clock_frame, 32, 8) * 3,
     13,
     3,
-    helicopter_position.x + 3,
-    helicopter_position.y - 1
+    helicopter_position.x - 5,
+    helicopter_position.y - 5
   )
 
   sspr(
     helicopter_sprite_x,
     8 + loop(clock_frame, 8, 8) * 3,
     3, 3,
+    helicopter_position.x - 8,
+    helicopter_position.y + tail_y_offset - 4
+  )
+
+  circ(
     helicopter_position.x,
-    helicopter_position.y + tail_y_offset
+    helicopter_position.y,
+    4,
+    12
   )
 end
 
@@ -413,6 +446,10 @@ function xy(x, y)
       return xy(p1.x + p2.x, p1.y + p2.y)
     end,
 
+    __sub = function(p1, p2)
+      return xy(p1.x - p2.x, p1.y - p2.y)
+    end,
+
     __lt = function(p1, p2)
       return p1.x < p2.x and p1.y < p2.y
     end,
@@ -421,6 +458,18 @@ function xy(x, y)
       return p1.x > p2.x and p1.y > p2.y
     end,
   })
+
+  function p:angle(p2)
+    return atan2(p2.x - self.x, -(p2.y - self.y))
+  end
+
+  function p:above(p2)
+    return self.y < p2.y
+  end
+
+  function p:below(p2)
+    return self.y > p2.y
+  end
 
   return p
 end
@@ -508,7 +557,7 @@ __gfx__
 00000000000000000000000000666655000666660000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
 01200000097500e750097500e75011750117530e7500e75009753117500e75011750157501575311750117500975315750117501575018750187530c7500c75009753117500c7531175015750157501575315100
-012000000c750117500c75011750157501575311750117500c753157501175015750187501875315750157500c7531875015750187501c7501c75310750107500c75315750107501575019750197532170021100
+012000000c750117500c75011750157501575311750117500c75315750117501575018750187531575015750107531875015750187501c7501c75310750107500c75315750107501575019750197532170021100
 01200000157551675013752167551a7501a7500000000000157551675013752167551b7501b7501570015750157550e7001a750157521a7551d7501d7501d7500000000000000000000000000000000000000000
 01200000157551675013752167551a7501a7500c0000c000157551675013752167551c7501c750157001575015755157551a7551e7552175021750217502d7000000000000000000000000000000000000000000
 010a00000c013006050060500605006150060517615176050c013006160061500605006150060517615176050c013006050060500605006150060500605006050c01300616006150060500615006051761517605
@@ -521,3 +570,4 @@ __music__
 00 02424344
 00 03424344
 03 04054344
+
