@@ -12,6 +12,7 @@ function _init()
   init_collision()
   init_rotor()
   init_smoke()
+  speed(1)
 end
 
 function _update60()
@@ -31,6 +32,8 @@ function _draw()
   draw_smoke()
   draw_helicopter()
   draw_hitbox()
+
+  camera(0, 0)
   draw_overlay()
 end
 
@@ -43,11 +46,35 @@ function init_cave()
   cave_position = xy(0, 0)
   cave_velocity = xy(1, 0)
   cave_floor = {}
+  cave_floor_blur_colors = {}
+  cave_floor_blur_heights = {}
+  cave_floor_edge_colors = {}
+  cave_floor_edge_heights = {}
   cave_roof = {}
+  cave_roof_blur_colors = {}
+  cave_roof_blur_heights = {}
+  cave_roof_edge_colors = {}
+  cave_roof_edge_heights = {}
 
   for x = 0, 127 do
-    add(cave_roof, xy(x, cave_position.y + 8 + rnd(2)))
-    add(cave_floor, xy(x, cave_position.y + 119 + rnd(2)))
+    add(cave_floor, xy())
+    add(cave_floor_blur_colors, 1)
+    add(cave_floor_blur_heights, 0)
+    add(cave_floor_edge_colors, 7)
+    add(cave_floor_edge_heights, 0)
+    add(cave_roof, xy())
+    add(cave_roof_blur_colors, 1)
+    add(cave_roof_blur_heights, 0)
+    add(cave_roof_edge_colors, 7)
+    add(cave_roof_edge_heights, 0)
+  end
+
+  for x = 0, 127 do
+    add_cave(
+      x,
+      xy(x, cave_position.y + 8 + flr(rnd(2))),
+      xy(x, cave_position.y + 119 + flr(rnd(2)))
+    )
   end
 end
 
@@ -117,7 +144,11 @@ end
 function update_cave()
   cave_position += cave_velocity
 
-  if clock_frame > 64 and clock_frame < 128 then
+  if clock_frame == 60 then
+    cave_position.y -= 64
+  elseif clock_frame == 63 then
+    cave_position.y += 64
+  elseif clock_frame > 64 and clock_frame < 128 then
     cave_position.y += sin(64 / (clock_frame - 64)) * 3
   elseif clock_frame > 192 and clock_frame < 256 then
     cave_position.y += cos(64 / (clock_frame - 64)) * 1
@@ -126,19 +157,41 @@ function update_cave()
   end
 
   for i = 1, 127 do
-    local j = i + cave_velocity.x
+    local j = min(127, i + cave_velocity.x)
     cave_roof[i].x = cave_roof[j].x
     cave_roof[i].y = cave_roof[j].y
     cave_floor[i].x = cave_floor[j].x
     cave_floor[i].y = cave_floor[j].y
+    cave_floor_blur_heights[i] = cave_floor_blur_heights[j]
+    cave_floor_edge_heights[i] = cave_floor_edge_heights[j]
+    cave_roof_blur_heights[i] = cave_roof_blur_heights[j]
+    cave_roof_edge_heights[i] = cave_roof_edge_heights[j]
+
+    if helicopter_position.x - camera_position.x > i then
+      cave_roof_edge_colors[i] = 1
+      cave_floor_edge_colors[i] = 1
+    else
+      if helicopter_position.y - cave_roof[i].y - (i/2) < 8 then
+        cave_roof_edge_colors[i] = 7
+      else
+        cave_roof_edge_colors[i] = 1
+      end
+  
+      if cave_floor[i].y - helicopter_position.y - (i/2) < 8 then
+        cave_floor_edge_colors[i] = 7
+      else
+        cave_floor_edge_colors[i] = 1
+      end
+    end
   end
 
   for i = 128 - cave_velocity.x, 128 do
     local j = i - 1
-    cave_roof[i].x = cave_roof[j].x + 1
-    cave_roof[i].y = cave_position.y + 8 + rnd(2)
-    cave_floor[i].x = cave_floor[j].x + 1
-    cave_floor[i].y = cave_position.y + 119 + rnd(2)
+    add_cave(
+      i,
+      xy(cave_roof[j].x + 1, cave_position.y + 8 + flr(rnd(2))),
+      xy(cave_floor[j].x + 1, cave_position.y + 119 + flr(rnd(2)))
+    )
   end
 end
 
@@ -258,73 +311,19 @@ function draw_cave()
   local camera_bottom = camera_position.y + 128 + 4
 
   for i = 1, 128 do
+    local x = i + camera_position.x - 1
     local roof = cave_roof[i].y
     local floor = cave_floor[i].y
 
-    local bg_y1 = roof
-    local bg_y2 = floor
-    local bg_color = 0
+    line(x, roof, x, floor, 0)
 
-    local roof_blur_color = 1
-    local roof_rock_color = 5
+    line(x, camera_top, x, roof, 5)
+    line(x, roof, x, roof - cave_roof_blur_heights[i], cave_roof_blur_colors[i])
+    line(x, roof, x, roof - cave_roof_edge_heights[i], cave_roof_edge_colors[i])
 
-    local floor_rock_color = 5
-
-    local x = i + camera_position.x - 1
-
-    local floor_edge_color = 1
-    local floor_edge_y1 = floor
-    local floor_edge_y2 = tminmax(max, {
-      floor,
-      tgad(cave_floor, i - 1, 0, floor),
-      tgad(cave_floor, i + 1, 0, floor),
-    })
-
-    local floor_blur_color = 1
-    local floor_blur_y1 = floor_edge_y2 + 1
-    local floor_blur_y2 = tminmax(max, {
-      floor_blur_y1,
-      tgad(cave_floor, i - 1, 1, floor_blur_y1),
-      tgad(cave_floor, i - 2, 1, floor_blur_y1),
-      tgad(cave_floor, i + 1, 1, floor_blur_y1),
-      tgad(cave_floor, i + 2, 1, floor_blur_y1),
-    })
-
-    local roof_edge_color = 1
-    local roof_edge_y1 = roof
-    local roof_edge_y2 = tminmax(min, {
-      roof,
-      tgad(cave_roof, i - 1, 0, roof),
-      tgad(cave_roof, i + 1, 0, roof),
-    })
-
-    local roof_blur_color = 1
-    local roof_blur_y1 = roof
-    local roof_blur_y2 = tminmax(min, {
-      roof,
-      tgad(cave_roof, i - 1, -1, roof),
-      tgad(cave_roof, i - 2, -1, roof),
-      tgad(cave_roof, i + 1, -1, roof),
-      tgad(cave_roof, i + 2, -1, roof),
-    })
-
-    if helicopter_position.y - roof - (i/2) < 32 then
-      roof_edge_color = 7
-    end
-
-    if floor - helicopter_position.y - (i/2) < 32 then
-      floor_edge_color = 7
-    end
-
-    line(x, bg_y1, x, bg_y2, bg_color)
-
-    line(x, camera_top, x, roof, roof_rock_color)
-    line(x, roof_blur_y1, x, roof_blur_y2, roof_blur_color)
-    line(x, roof_edge_y1, x, roof_edge_y2, roof_edge_color)
-
-    line(x, floor, x, camera_bottom, floor_rock_color)
-    line(x, floor_blur_y1, x, floor_blur_y2, floor_blur_color)
-    line(x, floor_edge_y1, x, floor_edge_y2, floor_edge_color)
+    line(x, floor, x, camera_bottom, 5)
+    line(x, floor, x, floor + cave_floor_blur_heights[i], cave_floor_blur_colors[i])
+    line(x, floor, x, floor + cave_floor_edge_heights[i], cave_floor_edge_colors[i])
   end
 end
 
@@ -387,7 +386,6 @@ function draw_hitbox()
   )
 
   for i = 1, hitbox_box.size.x do
-
     pset(
       hitbox_box.position.x + i,
       hitbox_box.position.y + hitbox_box.size.y,
@@ -422,10 +420,7 @@ function draw_hitbox()
 end
 
 function draw_overlay()
-  camera(0, 0)
-  print(clock_frame, 1, 1, 7)
-  print(flr(cave_position.y), 1, 122, 7)
-  print(flr(camera_position.y), 32, 122, 7)
+  print(stat(1), 0, 0, 7)
 end
 
 function draw_smoke()
@@ -434,12 +429,59 @@ function draw_smoke()
   end
 end
 
+function add_cave(i, new_roof, new_floor)
+  cave_roof[i] = new_roof
+  cave_floor[i] = new_floor
+
+  local from = max(1, i - 4)
+  local to = min(127, i + 4)
+
+  for i = from, to do
+    local roof = cave_roof[i].y or new_roof.y
+    local floor = cave_floor[i].y or new_floor.y
+
+    cave_floor_blur_heights[i] = tminmax(max, {
+      floor,
+      tgad(cave_floor, i - 1, 1, floor + 2),
+      tgad(cave_floor, i - 2, 1, floor + 2),
+      tgad(cave_floor, i + 1, 1, floor + 2),
+      tgad(cave_floor, i + 2, 1, floor + 2),
+    }) - floor
+
+    cave_floor_edge_heights[i] = tminmax(max, {
+      floor,
+      tgad(cave_floor, i - 1, 0, floor),
+      tgad(cave_floor, i + 1, 0, floor),
+    }) - floor
+
+    cave_roof_blur_heights[i] = roof - tminmax(min, {
+      roof,
+      tgad(cave_roof, i - 1, -1, roof),
+      tgad(cave_roof, i - 2, -1, roof),
+      tgad(cave_roof, i + 1, -1, roof),
+      tgad(cave_roof, i + 2, -1, roof),
+    })
+
+    cave_roof_edge_heights[i] = roof - tminmax(min, {
+      roof,
+      tgad(cave_roof, i - 1, 0, roof),
+      tgad(cave_roof, i + 1, 0, roof),
+    })
+  end
+end
+
+function speed(n)
+  camera_velocity.x = n
+  cave_velocity.x = n
+  helicopter_velocity.x = n
+end
+
 function loop(n, m, o)
   return flr(n % m / flr(m / o))
 end
 
 function xy(x, y)
-  local p = { x = x, y = y }
+  local p = { x = x or 0, y = y or 0 }
   
   setmetatable(p, {
     __add = function(p1, p2)
@@ -500,7 +542,7 @@ function box(position, size)
 end
 
 function tgad(t, g, a, d)
-  if t[g] == nil then
+  if t[g] == nil or t[g].y == nil then
     return d
   else
     return t[g].y + a
