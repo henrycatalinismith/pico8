@@ -11,6 +11,7 @@ function _init()
  init_cave()
  init_gravity()
  init_helicopter()
+ init_level()
  init_chunk()
  init_hitbox()
  init_collision()
@@ -80,12 +81,11 @@ function init_hitbox()
 end
 
 function init_chunk()
-
  chunk_queue = {
   straight(),
-  ubend(),
-  straight(),
-  ubend(),
+  --ubend(),
+  --straight(),
+  --ubend(),
  }
 
  next_chunk()
@@ -97,13 +97,22 @@ function init_chunk()
   add_cave(x, rp, fp)
 
   if chunk_slice.coin ~= nil then
-   printh("ADD")
    local cp = xy(x, rp.y + ((fp.y - rp.y) * chunk_slice.coin))
-   printh(cp.x)
-   printh(cp.y)
    add(coins, cp)
   end
  end
+end
+
+function init_level()
+ level_queue = {
+  easy_level(),
+  bottleneck(),
+  easy_level(),
+  medium_level(),
+  easy_level(),
+ }
+
+ next_level()
 end
 
 function init_rotor()
@@ -480,6 +489,19 @@ end
 -->8
 -- levels
 
+function next_level()
+ printh("next level")
+
+ if #level_queue == 0 then
+  add(level_queue, easy_level())
+ end
+
+ local fn = level_queue[1]
+ del(level_queue, fn)
+
+ chunk_queue = fn()
+end
+
 function level(fn)
  return fn
 end
@@ -494,6 +516,27 @@ function easy_level()
  )
 end
 
+function bottleneck()
+ return level(
+  function()
+   return {
+    narrow(),
+    widen(),
+   }
+  end
+ )
+end
+
+function medium_level()
+ return level(
+  function()
+   return {
+    ubend(),
+   }
+  end
+ )
+end
+
 -->8
 -- chunks
 
@@ -501,6 +544,11 @@ end
 function next_chunk()
  printh("next chunk")
  camera_velocity.y = 0
+
+ if #chunk_queue == 0 then
+  next_level()
+ end
+
  chunk_fn = chunk_queue[1]
  del(chunk_queue, chunk_fn)
  chunk_distance = 0
@@ -554,6 +602,32 @@ function straight()
     roof = noise(2),
     floor = noise(2),
     coins = {{ 0.9, 0.5 }},
+   }
+  end
+ )
+end
+
+function narrow()
+ return chunk(
+  function()
+   return {
+    length = 64,
+    roof = noise(2) + descend(32) + sinwave(2, 2),
+    floor = noise(2) + ascend(32) + sinwave(2, 2),
+    coins = {},
+   }
+  end
+ )
+end
+
+function widen()
+ return chunk(
+  function()
+   return {
+    length = 64,
+    roof = ascend(32) + sinwave(2, 2),
+    floor = descend(32) + sinwave(2, 2),
+    coins = {},
    }
   end
  )
@@ -652,6 +726,14 @@ function squarewave(magnitude, frequency)
  return terrain(
   function(p)
    return max(0, ceil(sin(p * frequency))) * magnitude
+  end
+ )
+end
+
+function ascend(depth)
+ return terrain(
+  function(p)
+   return p * -depth
   end
  )
 end
