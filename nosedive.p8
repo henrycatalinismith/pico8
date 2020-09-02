@@ -23,6 +23,9 @@ end
 function init_camera()
  camera_position = xy(0, 0)
  camera_velocity = xy(1, 0)
+ camera_error_count = 0
+ camera_move_frame = nil
+ camera_target_depth = nil
 end
 
 function init_cave()
@@ -106,6 +109,7 @@ end
 function init_level()
  level_queue = {
   easy_level(),
+  bendup(),
   bottleneck(),
   easy_level(),
   medium_level(),
@@ -139,53 +143,37 @@ function _update60()
  update_smoke()
 end
 
+function avg(l)
+ local t = 0
+ for i in all(l) do
+  t += i
+ end
+ return t / #l
+end
+
 function update_camera()
- local last_roof = cave_roof[127 - 16].y
- local last_floor = cave_floor[127 - 16].y
+ local ideal_camera_depth = avg({
+  cave_roof[32].y,
+  cave_floor[32].y,
+  cave_roof[96].y,
+  cave_floor[96].y,
+ }) - 64
+ local camera_error_offset = camera_position.y - ideal_camera_depth
+ local camera_error_magnitude = abs(camera_error_offset)
 
- local camera_y1 = camera_position.y
- local camera_y2 = camera_position.y + 127
-
- local camera_ok = (
-  camera_y1 < last_roof
-  and camera_y2 > last_floor
- )
-
- if camera_ok then
+ if camera_error_magnitude < 2 then
+  camera_error_count = 0
  else
-  --camera_position.y = cave_roof[127].y - 8
-  --camera_position.y += cave_roof[127].y - cave_roof[1].y / 128
-  --camera_velocity.y = 0.5
+  camera_error_count += 1
  end
 
- -- local ideal_camera_depth = ((last_roof + last_floor) / 2) - 64
- -- local camera_offset = camera_position.y - ideal_camera_depth
- -- local camera_wrongness = abs(camera_offset)
- -- local camera_too_wrong = camera_wrongness > 1
- -- local camera_must_move = camera_too_wrong
- -- local camera_can_stabilize = cave_roof[126].y == cave_roof[127].y
- -- local camera_very_close = (
- --   (flr(camera_position.y) == flr(ideal_camera_depth))
- --   or (flr(camera_position.y) == flr(ideal_camera_depth) + 1)
- -- )
+ if camera_error_count > 1 then
+  camera_velocity.y = camera_error_offset
+   * (camera_error_count / 256)
+   * -1
+ end
 
- -- if camera_very_close and camera_can_stabilize then
- --   camera_velocity.y = 0
- -- elseif camera_must_move then
- --   local ideal_new_camera_velocity = camera_offset * -1
- --   local camera_velocity_offset = camera_velocity.y - ideal_new_camera_velocity
- --   local camera_velocity_change = abs(camera_velocity_offset)
- --   camera_velocity.y -= camera_velocity_offset / 512
- -- else
- --   camera_velocity.y = 0
- -- end
-
- --camera_velocity.y = min(3, max(-3, camera_velocity.y))
-
- camera_position.x += camera_velocity.x
- camera_position.y += camera_velocity.y
- --camera_position.y += camera_velocity.y
- -- camera_position.x = cave_roof[1].x
+ camera_position += camera_velocity
 end
 
 function update_cave()
@@ -516,6 +504,18 @@ function easy_level()
  )
 end
 
+function bendup()
+ return level(
+  function()
+   return {
+    sinechunk(),
+    --narrow(),
+    --widen(),
+   }
+  end
+ )
+end
+
 function bottleneck()
  return level(
   function()
@@ -612,8 +612,8 @@ function narrow()
   function()
    return {
     length = 64,
-    roof = noise(2) + descend(32) + sinwave(2, 2),
-    floor = noise(2) + ascend(32) + sinwave(2, 2),
+    roof = noise(2) + descend(32) + sinewave(2, 2),
+    floor = noise(2) + ascend(32) + sinewave(2, 2),
     coins = {},
    }
   end
@@ -625,8 +625,24 @@ function widen()
   function()
    return {
     length = 64,
-    roof = ascend(32) + sinwave(2, 2),
-    floor = descend(32) + sinwave(2, 2),
+    roof = ascend(32) + sinewave(2, 2),
+    floor = descend(32) + sinewave(2, 2),
+    coins = {},
+   }
+  end
+ )
+end
+
+function sinechunk()
+ return chunk(
+  function()
+   local length = 128
+   local descent = 0
+   --camera_velocity.y = descent / length
+   return {
+    length = length,
+    roof = curveup(512),
+    floor = curveup(512),
     coins = {},
    }
   end
@@ -641,8 +657,8 @@ function ubend()
    camera_velocity.y = descent / length
    return {
     length = length,
-    roof = noise(1) + sinwave(8, 4) + fudge(24) + descend(descent),
-    floor = noise(1) + sinwave(8, 4) + fudge(-24) + descend(descent),
+    roof = noise(1) + sinewave(8, 4) + fudge(24) + descend(descent),
+    floor = noise(1) + sinewave(8, 4) + fudge(-24) + descend(descent),
     coins = {
      { 0.2, 0.8 },
      { 0.3, 0.2 },
@@ -714,7 +730,20 @@ function fudge(n)
  )
 end
 
-function sinwave(magnitude, frequency)
+function curveup(radius)
+ return terrain(
+  function(p)
+   local cx = p * radius
+   local c = xy(0, 0)
+   local p = xy(p*radius, radius)
+   local a = p:angle(c)
+   local y = radius * sin(a)
+   return y - radius
+  end
+ )
+end
+
+function sinewave(magnitude, frequency)
  return terrain(
   function(p)
    return sin(p * frequency) * magnitude
