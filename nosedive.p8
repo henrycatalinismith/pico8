@@ -109,6 +109,7 @@ end
 function init_level()
  level_queue = {
   easy_level(),
+  circleup(),
   bendup(),
   bottleneck(),
   easy_level(),
@@ -509,9 +510,48 @@ function bendup()
   function()
    return {
     sinechunk(),
-    --narrow(),
-    --widen(),
    }
+  end
+ )
+end
+
+function circleup()
+ return level(
+  function()
+   return {
+    fourcircles(),
+   }
+  end
+ )
+end
+
+function fourcircles()
+ return chunk(
+  function()
+   local length = 128
+   local descent = 0
+   return {
+    length = length,
+    roof = twocircles(64),
+    floor = twocircles(64),
+    coins = {},
+   }
+  end
+ )
+end
+
+function twocircles(r1, r2)
+ return terrain(
+  function(p)
+   if p < 0.5 then
+    local p1 = p * 2
+    local y = sqrt(r1^2 - (p1 * r1)^2)
+    return y - r1
+   else
+    local p2 = 1 - ((p - 0.5) * 2)
+    local y = sqrt(r1^2 - (p2 * r1)^2)
+    return 0 - r1 - y
+   end
   end
  )
 end
@@ -638,7 +678,6 @@ function sinechunk()
   function()
    local length = 128
    local descent = 0
-   --camera_velocity.y = descent / length
    return {
     length = length,
     roof = curveup(512),
@@ -911,8 +950,6 @@ function tminmax(fn, t)
  end
 end
 
-
--->8
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
