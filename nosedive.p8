@@ -85,7 +85,7 @@ end
 
 function init_chunk()
  chunk_queue = {
-  straight(),
+  chunk:straight(),
   --ubend(),
   --straight(),
   --ubend(),
@@ -108,15 +108,15 @@ end
 
 function init_level()
  level_queue = {
-  easy_level(),
-  pythagup(),
-  easy_level(),
-  circleup(),
-  bendup(),
-  bottleneck(),
-  easy_level(),
-  medium_level(),
-  easy_level(),
+  level:easy(),
+  level:pythagup(),
+  level:easy(),
+  level:circleup(),
+  level:bendup(),
+  level:bottleneck(),
+  level:easy(),
+  level:ubend(),
+  level:easy(),
  }
 
  next_level()
@@ -468,7 +468,16 @@ function draw_hitbox()
 end
 
 function draw_overlay()
- print(stat(1), 0, 0, 7)
+ draw_bar("cpu", stat(1), 1, 123)
+ draw_bar("chk", chunk_progress, 32, 123)
+ draw_bar("lvl", level_progress, 64, 123)
+end
+
+function draw_bar(l, p, x, y)
+ line(x+1, y+1, x+14, y+1, 5)
+ line(x+1, y+1, x+14*p, y+1, 7)
+ rect(x, y, x+15, y+2, 1)
+ print(l, x+17, y-1, 7)
 end
 
 function draw_smoke()
@@ -480,160 +489,226 @@ end
 -->8
 -- levels
 
+
+
+level = (function()
+ local level = {}
+
+ setmetatable(level, {
+  __call = function(_, fn)
+   return setmetatable({}, {
+    __call = fn,
+   })
+  end
+ })
+
+ function level:bendup()
+  return level(
+   function()
+    return {
+     chunk:sine(),
+    }
+   end
+  )
+ end
+
+ function level:bottleneck()
+  return level(
+   function()
+    return {
+     chunk:narrow(),
+     chunk:widen(),
+    }
+   end
+  )
+ end
+
+ function level:circleup()
+  return level(
+   function()
+    return {
+     chunk:fourcircles(),
+    }
+   end
+  )
+ end
+
+ function level:easy()
+  return level(
+   function()
+    return {
+     chunk:straight(),
+    }
+   end
+  )
+ end
+
+ function level:pythagup()
+  return level(
+   function()
+    return {
+     chunk:pythag(16, 1, 1),
+     chunk:pythag(16, 1, -1),
+     chunk:pythag(16, -1, 1),
+     chunk:pythag(16, -1, -1),
+    }
+   end
+  )
+ end
+
+ function level:ubend()
+  return level(
+   function()
+    return {
+     chunk:ubend(),
+    }
+   end
+  )
+ end
+
+ return level
+end)()
+
 function next_level()
  printh("next level")
 
  if #level_queue == 0 then
-  add(level_queue, easy_level())
+  add(level_queue, level:easy())
  end
 
  local fn = level_queue[1]
  del(level_queue, fn)
 
  chunk_queue = fn()
+ level_length = #chunk_queue
+ level_progress = 0
 end
 
-function level(fn)
- return fn
-end
-
-function easy_level()
- return level(
-  function()
-   return {
-    straight(),
-   }
-  end
- )
-end
-
-function bendup()
- return level(
-  function()
-   return {
-    sinechunk(),
-   }
-  end
- )
-end
-
-function circleup()
- return level(
-  function()
-   return {
-    fourcircles(),
-   }
-  end
- )
-end
-
-function pythagup()
- return level(
-  function()
-   return {
-    pythagchunk(16, 1, 1),
-    pythagchunk(16, 1, -1),
-    pythagchunk(16, -1, 1),
-    pythagchunk(16, -1, -1),
-   }
-  end
- )
-end
-
-function fourcircles()
- return chunk(
-  function()
-   local length = 128
-   local descent = 0
-   return {
-    length = length,
-    roof = twocircles(64),
-    floor = twocircles(64),
-    coins = {},
-   }
-  end
- )
-end
-
-function pythagchunk(length, direction, side)
- return chunk(
-  function()
-   return {
-    length = length,
-    roof = pythagstep(length, direction, side),
-    floor = pythagstep(length, -direction, side),
-    coins = {},
-   }
-  end
- )
-end
-
-function pythagstep(r, d, s)
- return terrain(
-  function(p)
-   if s == -1 then
-    p = 1 - p
-   end
-   local a = flr(r*p)
-   local c = r
-   local py = sqrt(c^2 - a^2)
-   local y = r - py
-   if s == -1 and d == 1 then
-    y = py + 0
-   elseif s == -1 and d == -1 then
-    y = r - r - r + y
-   elseif d == -1 then
-    y = py - r
-   end
-   return y
-  end
- )
-end
-
-function twocircles(r1, r2)
- return terrain(
-  function(p)
-   if p < 0.5 then
-    local p1 = p * 2
-    local y = sqrt(r1^2 - (p1 * r1)^2)
-    return y - r1
-   else
-    local p2 = 1 - ((p - 0.5) * 2)
-    local y = sqrt(r1^2 - (p2 * r1)^2)
-    return 0 - r1 - y
-   end
-  end
- )
-end
-
-function bottleneck()
- return level(
-  function()
-   return {
-    narrow(),
-    widen(),
-   }
-  end
- )
-end
-
-function medium_level()
- return level(
-  function()
-   return {
-    ubend(),
-   }
-  end
- )
-end
 
 -->8
 -- chunks
 
+chunk = (function()
+ local chunk = {}
+
+ setmetatable(chunk, {
+  __call = function(_, l, fn)
+   return setmetatable({}, {
+    __call = fn,
+    __index = { l = l },
+   })
+  end
+ })
+
+function chunk:fourcircles()
+ return chunk(
+  128,
+  function()
+   return {
+    roof = terrain:twocircles(64),
+    floor = terrain:twocircles(64),
+    coins = {},
+   }
+  end
+ )
+end
+
+ function chunk:narrow()
+  return chunk(
+   128,
+   function()
+    return {
+     roof = terrain:noise(2) + terrain:descend(32) + terrain:sinewave(2, 2),
+     floor = terrain:noise(2) + terrain:ascend(32) + terrain:sinewave(2, 2),
+     coins = {},
+    }
+   end
+  )
+ end
+
+ function chunk:pythag(l, direction, side)
+  return chunk(
+   l,
+   function(h)
+    return {
+     roof = terrain:pythagstep(l, direction, side),
+     floor = terrain:pythagstep(l, -direction, side),
+     coins = {},
+    }
+   end
+  )
+ end
+
+ function chunk:sine()
+  return chunk(
+   128,
+   function()
+    return {
+     roof = terrain:curveup(512),
+     floor = terrain:curveup(512),
+     coins = {},
+    }
+   end
+  )
+ end
+
+ function chunk:straight()
+  return chunk(
+   128,
+   function()
+    return {
+     roof = terrain:noise(2),
+     floor = terrain:noise(2),
+     coins = {{ 0.9, 0.5 }},
+    }
+   end
+  )
+ end
+
+ function chunk:ubend()
+  return chunk(
+   256,
+   function()
+    local descent = 128
+    camera_velocity.y = descent / 256
+    return {
+     roof = terrain:noise(1) + terrain:sinewave(8, 4) + terrain:fudge(24) + terrain:descend(descent),
+     floor = terrain:noise(1) + terrain:sinewave(8, 4) + terrain:fudge(-24) + terrain:descend(descent),
+     coins = {
+      { 0.2, 0.8 },
+      { 0.3, 0.2 },
+      { 0.45, 0.8 },
+      { 0.55, 0.2 },
+      { 0.7, 0.8 },
+      { 0.8, 0.2 },
+      { 0.95, 0.8 },
+     },
+    }
+   end
+  )
+ end
+
+ function chunk:widen()
+  return chunk(
+   64,
+   function()
+    return {
+     roof = terrain:ascend(32) + terrain:sinewave(2, 2),
+     floor = terrain:descend(32) + terrain:sinewave(2, 2),
+     coins = {},
+    }
+   end
+  )
+ end
+
+ return chunk
+end)()
 
 function next_chunk()
  printh("next chunk")
  camera_velocity.y = 0
+ level_progress = (level_length - #chunk_queue) / level_length
+ printh(level_progress)
 
  if #chunk_queue == 0 then
   next_level()
@@ -645,8 +720,9 @@ function next_chunk()
  chunk_progress = 0
  chunk_start_roof = cave_roof[127].y
  chunk_start_floor = cave_floor[127].y
- chunk_object = chunk_fn()
- chunk_length = chunk_object.length
+ local h = chunk_start_floor - chunk_start_roof
+ chunk_object = chunk_fn(h)
+ chunk_length = chunk_fn.l
  chunk_coins = chunk_object.coins
 end
 
@@ -680,187 +756,145 @@ function pump_chunk()
  }
 end
 
-function chunk(fn)
- return fn
-end
-
-function straight()
- return chunk(
-  function()
-   return {
-    length = 128,
-    roof = noise(2),
-    floor = noise(2),
-    coins = {{ 0.9, 0.5 }},
-   }
-  end
- )
-end
-
-function narrow()
- return chunk(
-  function()
-   return {
-    length = 64,
-    roof = noise(2) + descend(32) + sinewave(2, 2),
-    floor = noise(2) + ascend(32) + sinewave(2, 2),
-    coins = {},
-   }
-  end
- )
-end
-
-function widen()
- return chunk(
-  function()
-   return {
-    length = 64,
-    roof = ascend(32) + sinewave(2, 2),
-    floor = descend(32) + sinewave(2, 2),
-    coins = {},
-   }
-  end
- )
-end
-
-function sinechunk()
- return chunk(
-  function()
-   return {
-    length = 128,
-    roof = curveup(512),
-    floor = curveup(512),
-    coins = {},
-   }
-  end
- )
-end
-
-function ubend()
- return chunk(
-  function()
-   local length = 256
-   local descent = 128
-   camera_velocity.y = descent / length
-   return {
-    length = length,
-    roof = noise(1) + sinewave(8, 4) + fudge(24) + descend(descent),
-    floor = noise(1) + sinewave(8, 4) + fudge(-24) + descend(descent),
-    coins = {
-     { 0.2, 0.8 },
-     { 0.3, 0.2 },
-     { 0.45, 0.8 },
-     { 0.55, 0.2 },
-     { 0.7, 0.8 },
-     { 0.8, 0.2 },
-     { 0.95, 0.8 },
-    },
-   }
-  end
- )
-end
-
-
 -->8
 -- terrain
 
-function terrain(fn)
- local g = { fn }
+terrain = (function()
+ local terrain = {}
 
- setmetatable(g, {
-  __add = function(g1, g2)
-   add(g1, g2[1])
-   return g1
-  end,
+ setmetatable(terrain, {
+  __call = function(_, fn)
+   local g = { fn }
 
-  __call = function(_, p)
-   local o = 0
-   for f in all(g) do
-    o += f(p)
-   end
-   return o
-  end,
+   setmetatable(g, {
+    __add = function(g1, g2)
+     add(g1, g2[1])
+     return g1
+    end,
+  
+    __call = function(_, p)
+     local o = 0
+     for f in all(g) do
+      o += f(p)
+     end
+     return o
+    end,
+   })
+  
+   return g
+
+  end
  })
 
- return g
-end
-
-function flat()
- return terrain(
-  function(p)
-   return 0
-  end
- )
-end
-
-function noise(n)
- return terrain(
-  function(p)
-   if p == 1 then
-    return 0
-   else
-    return flr(rnd(n)) - n/2
+ function terrain:ascend(depth)
+  return terrain(
+   function(p)
+    return p * -depth
    end
-  end
- )
-end
+  )
+ end
 
-function fudge(n)
- return terrain(
-  function(p)
-   if p == 1 then
-    return 0
-   else
-    return n
+ function terrain:curveup(radius)
+  return terrain(
+   function(p)
+    local cx = p * radius
+    local c = xy(0, 0)
+    local p = xy(p*radius, radius)
+    local a = p:angle(c)
+    local y = radius * sin(a)
+    return y - radius
    end
-  end
- )
-end
+  )
+ end
 
-function curveup(radius)
- return terrain(
-  function(p)
-   local cx = p * radius
-   local c = xy(0, 0)
-   local p = xy(p*radius, radius)
-   local a = p:angle(c)
-   local y = radius * sin(a)
-   return y - radius
-  end
- )
-end
+ function terrain:descend(depth)
+  return terrain(
+   function(p)
+    return p * depth
+   end
+  )
+ end
 
-function sinewave(magnitude, frequency)
- return terrain(
-  function(p)
-   return sin(p * frequency) * magnitude
-  end
- )
-end
+ function terrain:flat()
+  return terrain(
+   function(p)
+    return 0
+   end
+  )
+ end
 
-function squarewave(magnitude, frequency)
- return terrain(
-  function(p)
-   return max(0, ceil(sin(p * frequency))) * magnitude
-  end
- )
-end
+ function terrain:fudge(n)
+  return terrain(
+   function(p)
+    if p == 1 then
+     return 0
+    else
+     return n
+    end
+   end
+  )
+ end
 
-function ascend(depth)
- return terrain(
-  function(p)
-   return p * -depth
-  end
- )
-end
+ function terrain:noise(n)
+  return terrain(
+   function(p)
+    if p == 1 then
+     return 0
+    else
+     return flr(rnd(n)) - n/2
+    end
+   end
+  )
+ end
 
-function descend(depth)
- return terrain(
-  function(p)
-   return p * depth
-  end
- )
-end
+ function terrain:pythagstep(r, d, s)
+  return terrain(
+   function(p)
+    if s == -1 then
+     p = 1 - p
+    end
+    local a = flr(r*p)
+    local c = r
+    local py = sqrt(c^2 - a^2)
+    local y = r - py
+    if s == -1 and d == 1 then
+     y = py + 0
+    elseif s == -1 and d == -1 then
+     y = r - r - r + y
+    elseif d == -1 then
+     y = py - r
+    end
+    return y
+   end
+  )
+ end
+
+ function terrain:sinewave(magnitude, frequency)
+  return terrain(
+   function(p)
+    return sin(p * frequency) * magnitude
+   end
+  )
+ end
+
+ function terrain:twocircles(r1, r2)
+  return terrain(
+   function(p)
+    if p < 0.5 then
+     local p1 = p * 2
+     local y = sqrt(r1^2 - (p1 * r1)^2)
+     return y - r1
+    else
+     local p2 = 1 - ((p - 0.5) * 2)
+     local y = sqrt(r1^2 - (p2 * r1)^2)
+     return 0 - r1 - y
+    end
+   end
+  )
+ end
+
+ return terrain
+end)()
 
 -->8
 
