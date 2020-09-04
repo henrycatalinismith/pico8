@@ -181,7 +181,7 @@ end
 
 function update_cave()
  for i = 1, 127 do
-  local j = min(128, i + cave_velocity.x)
+  local j = min(128, i + 1)
   cave_roof[i].x = cave_roof[j].x
   cave_roof[i].y = cave_roof[j].y
   cave_floor[i].x = cave_floor[j].x
@@ -489,81 +489,55 @@ end
 -->8
 -- levels
 
-
-
 level = (function()
  local level = {}
 
  setmetatable(level, {
-  __call = function(_, fn)
-   return setmetatable({}, {
-    __call = fn,
-   })
+  __call = function(_, chunks)
+   return {
+    chunks = chunks,
+   }
   end
  })
 
  function level:bendup()
-  return level(
-   function()
-    return {
-     chunk:sine(),
-    }
-   end
-  )
+  return level({
+   chunk:sine(),
+  })
  end
 
  function level:bottleneck()
-  return level(
-   function()
-    return {
-     chunk:narrow(),
-     chunk:widen(),
-    }
-   end
-  )
+  return level({
+   chunk:narrow(),
+   chunk:widen(),
+  })
  end
 
  function level:circleup()
-  return level(
-   function()
-    return {
-     chunk:fourcircles(),
-    }
-   end
-  )
+  return level({
+   chunk:fourcircles(),
+  })
  end
 
  function level:easy()
-  return level(
-   function()
-    return {
-     chunk:straight(),
-    }
-   end
-  )
+  return level({
+   chunk:straight(),
+  })
  end
 
  function level:pythagup()
-  return level(
-   function()
-    return {
-     chunk:pythag(16, 1, 1),
-     chunk:pythag(16, 1, -1),
-     chunk:pythag(16, -1, 1),
-     chunk:pythag(16, -1, -1),
-    }
-   end
-  )
+  return level({
+   chunk:pythag(16, 1, 1),
+   chunk:pythag(16, 1, -1),
+   chunk:pythag(16, -1, 1),
+   chunk:pythag(16, -1, -1),
+  })
  end
 
  function level:ubend()
-  return level(
-   function()
-    return {
-     chunk:ubend(),
-    }
-   end
-  )
+  return level({
+   chunk:ubend(),
+  })
  end
 
  return level
@@ -576,10 +550,10 @@ function next_level()
   add(level_queue, level:easy())
  end
 
- local fn = level_queue[1]
- del(level_queue, fn)
+ local level_object = level_queue[1]
+ del(level_queue, level_object)
 
- chunk_queue = fn()
+ chunk_queue = level_object.chunks
  level_length = #chunk_queue
  level_progress = 0
 end
@@ -592,112 +566,79 @@ chunk = (function()
  local chunk = {}
 
  setmetatable(chunk, {
-  __call = function(_, l, fn)
-   return setmetatable({}, {
-    __call = fn,
-    __index = { l = l },
-   })
+  __call = function(_, length, roof, floor, coins)
+   return {
+    length = length,
+    roof = roof,
+    floor = floor,
+    coins = coins or {},
+   }
   end
  })
 
-function chunk:fourcircles()
- return chunk(
-  128,
-  function()
-   return {
-    roof = terrain:twocircles(64),
-    floor = terrain:twocircles(64),
-    coins = {},
-   }
-  end
- )
-end
+ function chunk:fourcircles()
+  return chunk(
+   128,
+   terrain:twocircles(64),
+   terrain:twocircles(64)
+  )
+ end
 
  function chunk:narrow()
   return chunk(
    128,
-   function()
-    return {
-     roof = terrain:noise(2) + terrain:descend(32) + terrain:sinewave(2, 2),
-     floor = terrain:noise(2) + terrain:ascend(32) + terrain:sinewave(2, 2),
-     coins = {},
-    }
-   end
+   terrain:noise(2) + terrain:descend(32) + terrain:sinewave(2, 2),
+   terrain:noise(2) + terrain:ascend(32) + terrain:sinewave(2, 2)
   )
  end
 
  function chunk:pythag(l, direction, side)
   return chunk(
    l,
-   function(h)
-    return {
-     roof = terrain:pythagstep(l, direction, side),
-     floor = terrain:pythagstep(l, -direction, side),
-     coins = {},
-    }
-   end
+   terrain:pythagstep(l, direction, side),
+   terrain:pythagstep(l, -direction, side)
   )
  end
 
  function chunk:sine()
   return chunk(
    128,
-   function()
-    return {
-     roof = terrain:curveup(512),
-     floor = terrain:curveup(512),
-     coins = {},
-    }
-   end
+   terrain:curveup(512),
+   terrain:curveup(512)
   )
  end
 
  function chunk:straight()
   return chunk(
    128,
-   function()
-    return {
-     roof = terrain:noise(2),
-     floor = terrain:noise(2),
-     coins = {{ 0.9, 0.5 }},
-    }
-   end
+   terrain:noise(2),
+   terrain:noise(2),
+   {{ 0.9, 0.5 }}
   )
  end
 
  function chunk:ubend()
   return chunk(
    256,
-   function()
-    local descent = 128
-    camera_velocity.y = descent / 256
-    return {
-     roof = terrain:noise(1) + terrain:sinewave(8, 4) + terrain:fudge(24) + terrain:descend(descent),
-     floor = terrain:noise(1) + terrain:sinewave(8, 4) + terrain:fudge(-24) + terrain:descend(descent),
-     coins = {
-      { 0.2, 0.8 },
-      { 0.3, 0.2 },
-      { 0.45, 0.8 },
-      { 0.55, 0.2 },
-      { 0.7, 0.8 },
-      { 0.8, 0.2 },
-      { 0.95, 0.8 },
-     },
+   terrain:noise(1) + terrain:sinewave(8, 4) + terrain:fudge(24) + terrain:descend(128),
+   terrain:noise(1) + terrain:sinewave(8, 4) + terrain:fudge(-24) + terrain:descend(128),
+   {
+    { 0.2, 0.8 },
+    { 0.3, 0.2 },
+    { 0.45, 0.8 },
+    { 0.55, 0.2 },
+    { 0.7, 0.8 },
+    { 0.8, 0.2 },
+    { 0.95, 0.8 },
     }
-   end
   )
  end
 
  function chunk:widen()
   return chunk(
    64,
-   function()
-    return {
-     roof = terrain:ascend(32) + terrain:sinewave(2, 2),
-     floor = terrain:descend(32) + terrain:sinewave(2, 2),
-     coins = {},
-    }
-   end
+   terrain:ascend(32) + terrain:sinewave(2, 2),
+   terrain:descend(32) + terrain:sinewave(2, 2)
   )
  end
 
@@ -714,15 +655,13 @@ function next_chunk()
   next_level()
  end
 
- chunk_fn = chunk_queue[1]
- del(chunk_queue, chunk_fn)
+ chunk_object = chunk_queue[1]
+ del(chunk_queue, chunk_object)
  chunk_distance = 0
  chunk_progress = 0
  chunk_start_roof = cave_roof[127].y
  chunk_start_floor = cave_floor[127].y
- local h = chunk_start_floor - chunk_start_roof
- chunk_object = chunk_fn(h)
- chunk_length = chunk_fn.l
+ chunk_length = chunk_object.length
  chunk_coins = chunk_object.coins
 end
 
