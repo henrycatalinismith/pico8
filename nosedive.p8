@@ -109,6 +109,8 @@ end
 function init_level()
  level_queue = {
   easy_level(),
+  pythagup(),
+  easy_level(),
   circleup(),
   bendup(),
   bottleneck(),
@@ -525,6 +527,19 @@ function circleup()
  )
 end
 
+function pythagup()
+ return level(
+  function()
+   return {
+    pythagchunk(16, 1, 1),
+    pythagchunk(16, 1, -1),
+    pythagchunk(16, -1, 1),
+    pythagchunk(16, -1, -1),
+   }
+  end
+ )
+end
+
 function fourcircles()
  return chunk(
   function()
@@ -536,6 +551,41 @@ function fourcircles()
     floor = twocircles(64),
     coins = {},
    }
+  end
+ )
+end
+
+function pythagchunk(length, direction, side)
+ return chunk(
+  function()
+   return {
+    length = length,
+    roof = pythagstep(length, direction, side),
+    floor = pythagstep(length, -direction, side),
+    coins = {},
+   }
+  end
+ )
+end
+
+function pythagstep(r, d, s)
+ return terrain(
+  function(p)
+   if s == -1 then
+    p = 1 - p
+   end
+   local a = flr(r*p)
+   local c = r
+   local py = sqrt(c^2 - a^2)
+   local y = r - py
+   if s == -1 and d == 1 then
+    y = py + 0
+   elseif s == -1 and d == -1 then
+    y = r - r - r + y
+   elseif d == -1 then
+    y = py - r
+   end
+   return y
   end
  )
 end
@@ -676,10 +726,8 @@ end
 function sinechunk()
  return chunk(
   function()
-   local length = 128
-   local descent = 0
    return {
-    length = length,
+    length = 128,
     roof = curveup(512),
     floor = curveup(512),
     coins = {},
