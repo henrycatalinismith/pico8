@@ -5,31 +5,34 @@ __lua__
 -- by hen
 
 function _init()
- init_camera()
- init_clock()
- init_coins()
- init_cave()
- init_gravity()
- init_helicopter()
- init_level()
- init_chunk()
- init_hitbox()
- init_collision()
- init_rotor()
- init_smoke()
- speed(1)
-end
+ level_queue = {
+  level:easy(),
+  level:pythagup(),
+  level:easy(),
+  level:circleup(),
+  level:bendup(),
+  level:bottleneck(),
+  level:easy(),
+  level:ubend(),
+  level:easy(),
+ }
+ 
+ next_level()
 
-function init_camera()
  camera_position = xy(0, 0)
  camera_velocity = xy(1, 0)
  camera_error_count = 0
  camera_move_frame = nil
  camera_target_depth = nil
-end
 
-function init_cave()
- cave_velocity = xy(1, 0)
+ clock_frame = 0
+
+ coins = {}
+
+ collision_point = nil
+
+ gravity_velocity = xy(0, 0.1)
+
  cave_floor = {}
  cave_floor_blur_colors = {}
  cave_floor_blur_heights = {}
@@ -54,41 +57,20 @@ function init_cave()
   add(cave_roof_edge_heights, 0)
  end
 
-end
-
-function init_clock()
- clock_frame = 0
-end
-
-function init_coins()
- coins = {}
-end
-
-function init_collision()
- collision_point = nil
-end
-
-function init_gravity()
- gravity_velocity = xy(0, 0.1)
-end
-
-function init_helicopter()
  helicopter_inclination = "hovering"
  helicopter_position = xy(48, 80)
  helicopter_velocity = xy(1, 0)
-end
 
-function init_hitbox()
  hitbox_offset = xy(-4, -4)
  hitbox_box = box(helicopter_position + hitbox_offset, xy(8, 8))
-end
 
-function init_chunk()
+ rotor_engaged = false
+ rotor_velocity = xy(0, 0)
+
+ smoke_puffs = {}
+
  chunk_queue = {
   chunk:straight(),
-  --ubend(),
-  --straight(),
-  --ubend(),
  }
 
  next_chunk()
@@ -98,38 +80,15 @@ function init_chunk()
   local rp = xy(x, chunk_start_roof + chunk_slice.roof)
   local fp = xy(x, chunk_start_floor + chunk_slice.floor)
   add_cave(x, rp, fp)
-
   if chunk_slice.coin ~= nil then
    local cp = xy(x, rp.y + ((fp.y - rp.y) * chunk_slice.coin))
    add(coins, cp)
   end
  end
+
+ speed(1)
 end
 
-function init_level()
- level_queue = {
-  level:easy(),
-  level:pythagup(),
-  level:easy(),
-  level:circleup(),
-  level:bendup(),
-  level:bottleneck(),
-  level:easy(),
-  level:ubend(),
-  level:easy(),
- }
-
- next_level()
-end
-
-function init_rotor()
- rotor_engaged = false
- rotor_velocity = xy(0, 0)
-end
-
-function init_smoke()
- smoke_puffs = {}
-end
 -->8
 -- update
 
@@ -180,6 +139,8 @@ function update_camera()
 end
 
 function update_cave()
+
+ for h = 1, camera_velocity.x do
  for i = 1, 127 do
   local j = min(128, i + 1)
   cave_roof[i].x = cave_roof[j].x
@@ -190,7 +151,10 @@ function update_cave()
   cave_floor_edge_heights[i] = cave_floor_edge_heights[j]
   cave_roof_blur_heights[i] = cave_roof_blur_heights[j]
   cave_roof_edge_heights[i] = cave_roof_edge_heights[j]
+ end
+ end
 
+ for i = 1, 128 do
   if helicopter_position.x - camera_position.x > i then
    cave_roof_edge_colors[i] = 1
    cave_floor_edge_colors[i] = 1
@@ -289,7 +253,7 @@ function update_hitbox()
 end
 
 function update_chunk()
- for i = 1, cave_velocity.x do
+ for i = 1, camera_velocity.x do
   local li = 128 - i + 1
   local lx = cave_roof[128 - i].x + 1
   local chunk_slice = pump_chunk()
@@ -647,9 +611,7 @@ end)()
 
 function next_chunk()
  printh("next chunk")
- camera_velocity.y = 0
  level_progress = (level_length - #chunk_queue) / level_length
- printh(level_progress)
 
  if #chunk_queue == 0 then
   next_level()
@@ -670,11 +632,13 @@ function pump_chunk()
   next_chunk()
  end
 
+ local rcl = chunk_length * helicopter_velocity.x
+ printh(rcl)
  chunk_distance += 1
- if chunk_distance == chunk_length then
+ if chunk_distance == rcl then
   chunk_progress = 1
  else
-  chunk_progress = chunk_distance / chunk_length
+  chunk_progress = chunk_distance / rcl
  end
 
  local roof = chunk_object.roof(chunk_progress)
@@ -880,7 +844,6 @@ end
 
 function speed(n)
  camera_velocity.x = n
- cave_velocity.x = n
  helicopter_velocity.x = n
 end
 
