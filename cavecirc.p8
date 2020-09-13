@@ -36,7 +36,9 @@ function circle(x, y, r)
   local d = circle.p + xy(x, circle.r)
   local a = circle.p:angle(d)
   local a = circle.p:angle(d)
-  local y = abs(circle.r * sin(a))
+  local y = abs(
+  	circle.r * sin(a)
+  )
   line(circle.p.x, circle.p.y, d.x, d.y, 8)
   return y
  end
