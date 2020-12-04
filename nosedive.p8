@@ -141,17 +141,17 @@ end
 function update_cave()
 
  for h = 1, camera_velocity.x do
- for i = 1, 127 do
-  local j = min(128, i + 1)
-  cave_roof[i].x = cave_roof[j].x
-  cave_roof[i].y = cave_roof[j].y
-  cave_floor[i].x = cave_floor[j].x
-  cave_floor[i].y = cave_floor[j].y
-  cave_floor_blur_heights[i] = cave_floor_blur_heights[j]
-  cave_floor_edge_heights[i] = cave_floor_edge_heights[j]
-  cave_roof_blur_heights[i] = cave_roof_blur_heights[j]
-  cave_roof_edge_heights[i] = cave_roof_edge_heights[j]
- end
+   for i = 1, 127 do
+    local j = min(128, i + 1)
+    cave_roof[i].x = cave_roof[j].x
+    cave_roof[i].y = cave_roof[j].y
+    cave_floor[i].x = cave_floor[j].x
+    cave_floor[i].y = cave_floor[j].y
+    cave_floor_blur_heights[i] = cave_floor_blur_heights[j]
+    cave_floor_edge_heights[i] = cave_floor_edge_heights[j]
+    cave_roof_blur_heights[i] = cave_roof_blur_heights[j]
+    cave_roof_edge_heights[i] = cave_roof_edge_heights[j]
+   end
  end
 
  for i = 1, 128 do
