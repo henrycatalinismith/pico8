@@ -5,6 +5,8 @@ __lua__
 -- by hen
 
 function _init()
+ debug_messages = {}
+
  level_queue = {
   level:easy(),
   level:pythagup(),
@@ -206,7 +208,7 @@ function update_collision()
  end
 
  if collision_point ~= nil then
-  printh("boom")
+  dbg("boom")
 
   camera(camera_position.x, camera_position.y)
   line(
@@ -435,6 +437,10 @@ function draw_overlay()
  draw_bar("cpu", stat(1), 1, 123)
  draw_bar("chk", chunk_progress, 32, 123)
  draw_bar("lvl", level_progress, 64, 123)
+
+ for i,debug_message in pairs(debug_messages) do
+   print(debug_message, 0, (i-1)*8)
+ end
 end
 
 function draw_bar(l, p, x, y)
@@ -508,7 +514,7 @@ level = (function()
 end)()
 
 function next_level()
- printh("next level")
+ dbg("next level")
 
  if #level_queue == 0 then
   add(level_queue, level:easy())
@@ -610,7 +616,7 @@ chunk = (function()
 end)()
 
 function next_chunk()
- printh("next chunk")
+ dbg("next chunk")
  level_progress = (level_length - #chunk_queue) / level_length
 
  if #chunk_queue == 0 then
@@ -633,7 +639,6 @@ function pump_chunk()
  end
 
  local rcl = chunk_length * helicopter_velocity.x
- printh(rcl)
  chunk_distance += 1
  if chunk_distance == rcl then
   chunk_progress = 1
@@ -840,6 +845,13 @@ function add_cave(ci, new_roof, new_floor)
    tgad(cave_roof, i + 1, 0, roof),
   })
  end
+end
+
+function dbg(message)
+  while #debug_messages >= 4 do
+    del(debug_messages, debug_messages[1])
+  end
+  add(debug_messages, message)
 end
 
 function speed(n)
