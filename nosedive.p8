@@ -5,10 +5,14 @@ __lua__
 -- by hen
 
 function _init()
+ debug_color = 8
  debug_messages = {}
+ 
+ explosion_position = nil
 
  level_queue = {
   level:easy(),
+  level:ubend(),
   level:pythagup(),
   level:easy(),
   level:circleup(),
@@ -59,6 +63,8 @@ function _init()
   add(cave_roof_edge_heights, 0)
  end
 
+ helicopter_alive = true
+ helicopter_died = nil
  helicopter_inclination = "hovering"
  helicopter_position = xy(48, 80)
  helicopter_velocity = xy(1, 0)
@@ -101,10 +107,13 @@ function _update60()
  update_chunk()
  update_coins()
  update_rotor()
- update_helicopter()
- update_hitbox()
- update_collision()
+ if explosion_position == nil then
+  update_helicopter()
+  update_hitbox()
+  update_collision()
+ end
  update_smoke()
+ update_explosion()
 end
 
 function avg(l)
@@ -116,6 +125,12 @@ function avg(l)
 end
 
 function update_camera()
+ if not helicopter_alive then
+  if (clock_frame - helicopter_died) % 16 == 0 then
+   camera_velocity.x = max(0, camera_velocity.x - 1)
+  end
+ end
+
  local ideal_camera_depth = avg({
   cave_roof[32].y,
   cave_floor[32].y,
@@ -182,7 +197,8 @@ end
 
 function update_coins()
  for coin in all(coins) do
-  if coin.x < camera_position.x then
+  if coin.x < camera_position.x - 8 then
+   dbg("del coin")
    del(coins, coin)
   end
  end
@@ -200,15 +216,28 @@ function update_collision()
    break
   end
 
+  if hitbox_box.y1 < roof.y then
+   collision_point = helicopter_position + xy(4, 0)
+   break
+  end
+
   local floor = cave_floor[j]
   if hitbox_box:contains(floor) then
    collision_point = floor
    break
   end
+
+  if hitbox_box.y2 > floor.y then
+   collision_point = helicopter_position + xy(4, 0)
+   break
+  end
  end
 
  if collision_point ~= nil then
-  dbg("boom")
+  dbg("boom " .. helicopter_position.x .. " " .. helicopter_position.y)
+  dbg(collision_point.x .. " " .. collision_point.y)
+  helicopter_alive = false
+  helicopter_died = clock_frame
 
   camera(camera_position.x, camera_position.y)
   line(
@@ -222,6 +251,7 @@ function update_collision()
   local dx = collision_point.x - helicopter_position.x
   local dy = -(collision_point.y - helicopter_position.y)
   local angle = atan2(dx, dy)
+  dbg(angle)
 
   local p = xy(
    helicopter_position.x + 8 * cos(angle),
@@ -232,6 +262,14 @@ function update_collision()
    helicopter_velocity.y = -2
   else
    helicopter_velocity.y = 2
+  end
+ end
+end
+
+function update_explosion()
+ if collision_point ~= nil then
+  if not collision_point:above(helicopter_position) then
+   explosion_position = collision_point
   end
  end
 end
@@ -274,7 +312,7 @@ end
 
 function update_rotor()
  rotor_engaged = btn(5)
- if rotor_engaged then
+ if helicopter_alive and rotor_engaged then
   rotor_velocity.y = -0.3
  else
   rotor_velocity.y = 0
@@ -294,7 +332,7 @@ function update_smoke()
   end
  end
 
- if clock_frame % 4 == 0 then
+ if helicopter_alive and clock_frame % 4 == 0 then
   local puff_radius = 0
   if rotor_engaged then
    puff_radius = 1
@@ -317,7 +355,9 @@ function _draw()
  draw_coins()
  draw_smoke()
  draw_helicopter()
-  --draw_hitbox()
+ draw_hitbox()
+ draw_collision()
+ draw_explosion()
 
  camera(0, 0)
  draw_overlay()
@@ -390,6 +430,38 @@ function draw_helicopter()
  )
 end
 
+function draw_collision()
+ if collision_point == nil then
+  return
+ end
+
+ circ(
+  collision_point.x,
+  collision_point.y,
+  2,
+  12
+ )
+
+ circ(
+  helicopter_position.x,
+  helicopter_position.y,
+  2,
+  8
+ )
+
+end
+
+function draw_explosion()
+ if explosion_position ~= nil then
+  circfill(
+   explosion_position.x,
+   explosion_position.y,
+   8,
+   8
+  )
+ end
+end
+
 function draw_hitbox()
  rect(
   hitbox_box.x1,
@@ -409,10 +481,10 @@ function draw_hitbox()
   local roof_color = 11
   local floor_color = 11
   if hitbox_box:contains(cave_roof[hitbox_box.position.x - camera_position.x + i]) then
-   roof_color = 8
+   roof_color = 14
   end
   if hitbox_box:contains(cave_floor[hitbox_box.position.x - camera_position.x + i]) then
-   floor_color = 8
+   floor_color = 14
   end
 
   line(
@@ -439,7 +511,7 @@ function draw_overlay()
  draw_bar("lvl", level_progress, 64, 123)
 
  for i,debug_message in pairs(debug_messages) do
-   print(debug_message, 0, (i-1)*8)
+   print(debug_message[1], 0, (i-1)*8, debug_message[2])
  end
 end
 
@@ -851,7 +923,11 @@ function dbg(message)
   while #debug_messages >= 4 do
     del(debug_messages, debug_messages[1])
   end
-  add(debug_messages, message)
+  debug_color += 1
+  if debug_color > 15 then
+    debug_color = 8
+  end
+  add(debug_messages, { message, debug_color })
 end
 
 function speed(n)
