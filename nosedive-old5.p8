@@ -5,114 +5,401 @@ __lua__
 -- by hen
 
 function _init()
- camera_position = xy(1, 0)
- camera_velocity = xy(2, 0)
- cave_floor = {}
- cave_roof = {}
- clock_frame = 0
- debug_messages = {}
  debug_color = 8
+ debug_messages = {}
+ 
+ explosion_position = nil
+
+ level_queue = {
+  level:easy(),
+  level:ubend(),
+  level:pythagup(),
+  level:easy(),
+  level:circleup(),
+  level:bendup(),
+  level:bottleneck(),
+  level:easy(),
+  level:ubend(),
+  level:easy(),
+ }
+ 
+ next_level()
+
+ camera_position = xy(0, 0)
+ camera_velocity = xy(1, 0)
+ camera_error_count = 0
+ camera_move_frame = nil
+ camera_target_depth = nil
+
+ clock_frame = 0
+
+ coins = {}
+
+ collision_point = nil
+
  gravity_velocity = xy(0, 0.1)
- helicopter_collision = nil
+
+ cave_floor = {}
+ cave_floor_blur_colors = {}
+ cave_floor_blur_heights = {}
+ cave_floor_edge_colors = {}
+ cave_floor_edge_heights = {}
+ cave_roof = {}
+ cave_roof_blur_colors = {}
+ cave_roof_blur_heights = {}
+ cave_roof_edge_colors = {}
+ cave_roof_edge_heights = {}
+
+ for x = 0, 127 do
+  add(cave_floor, xy(x, 119))
+  add(cave_floor_blur_colors, 1)
+  add(cave_floor_blur_heights, 0)
+  add(cave_floor_edge_colors, 7)
+  add(cave_floor_edge_heights, 0)
+  add(cave_roof, xy(x, 8))
+  add(cave_roof_blur_colors, 1)
+  add(cave_roof_blur_heights, 0)
+  add(cave_roof_edge_colors, 7)
+  add(cave_roof_edge_heights, 0)
+ end
+
+ helicopter_alive = true
  helicopter_died = nil
  helicopter_inclination = "hovering"
  helicopter_position = xy(48, 80)
- helicopter_velocity = xy(2, 0)
- helicopter_hitbox_offset = xy(-4, -4)
- helicopter_hitbox = box(
-  helicopter_position + helicopter_hitbox_offset,
-  xy(8, 8)
- )
- rotor_collision = nil
+ helicopter_velocity = xy(1, 0)
+
+ hitbox_offset = xy(-4, -4)
+ hitbox_box = box(helicopter_position + hitbox_offset, xy(8, 8))
+
  rotor_engaged = false
  rotor_velocity = xy(0, 0)
 
+ smoke_puffs = {}
+
+ chunk_queue = {
+  chunk:straight(),
+ }
+
+ next_chunk()
+
  for x = 1, 128 do
-  cave_floor[x] = 119
-  cave_roof[x] = 8
- end
-
- dbg("_init")
-end
-
-function _update60()
- clock_frame += 1
-
- if helicopter_collision then
-  camera_velocity = xy(0, 0)
-  helicopter_velocity = xy(0, 0)
- end
- camera_position += camera_velocity
-
- for x = maxkey(cave_roof), camera_position.x + 128 do
-  cave_roof[x] = 8 + rnd(2)
-  cave_floor[x] = 120 - rnd(2)
- end
-
- for x,y in pairs(cave_roof) do
-  if x < camera_position.x then
-   cave_roof[x] = nil
-   cave_floor[x] = nil
+  local chunk_slice = pump_chunk()
+  local rp = xy(x, chunk_start_roof + chunk_slice.roof)
+  local fp = xy(x, chunk_start_floor + chunk_slice.floor)
+  add_cave(x, rp, fp)
+  if chunk_slice.coin ~= nil then
+   local cp = xy(x, rp.y + ((fp.y - rp.y) * chunk_slice.coin))
+   add(coins, cp)
   end
  end
 
+ speed(2)
+end
+
+-->8
+-- update
+
+function _update60()
+ update_clock()
+ update_camera()
+ update_cave()
+ update_chunk()
+ update_coins()
+ update_rotor()
+ update_helicopter()
+ update_hitbox()
+ update_collision()
+ update_smoke()
+ update_explosion()
+end
+
+function avg(l)
+ local t = 0
+ for i in all(l) do
+  t += i
+ end
+ return t / #l
+end
+
+function update_camera()
+ if not helicopter_alive then
+  if (clock_frame - helicopter_died) % 8 == 0 then
+   camera_velocity.x = max(0, camera_velocity.x - 1)
+  end
+ end
+
+ local ideal_camera_depth = avg({
+  cave_roof[32].y,
+  cave_floor[32].y,
+  cave_roof[96].y,
+  cave_floor[96].y,
+ }) - 64
+ local camera_error_offset = camera_position.y - ideal_camera_depth
+ local camera_error_magnitude = abs(camera_error_offset)
+
+ if camera_error_magnitude < 2 then
+  camera_error_count = 0
+ else
+  camera_error_count += 1
+ end
+
+ if camera_error_count > 1 then
+  camera_velocity.y = camera_error_offset
+   * (camera_error_count / 256)
+   * -1
+ end
+
+ camera_position += camera_velocity
+end
+
+function update_cave()
+ if camera_velocity.x == 0 then
+  return
+ end
+
+ for h = 1, camera_velocity.x do
+   for i = 1, 127 do
+    local j = min(128, i + 1)
+    cave_roof[i].x = cave_roof[j].x
+    cave_roof[i].y = cave_roof[j].y
+    cave_floor[i].x = cave_floor[j].x
+    cave_floor[i].y = cave_floor[j].y
+    cave_floor_blur_heights[i] = cave_floor_blur_heights[j]
+    cave_floor_edge_heights[i] = cave_floor_edge_heights[j]
+    cave_roof_blur_heights[i] = cave_roof_blur_heights[j]
+    cave_roof_edge_heights[i] = cave_roof_edge_heights[j]
+   end
+ end
+
+ for i = 1, 128 do
+  if helicopter_position.x - camera_position.x > i then
+   cave_roof_edge_colors[i] = 1
+   cave_floor_edge_colors[i] = 1
+  else
+   if helicopter_position.y - cave_roof[i].y - (i/2) < 8 then
+    cave_roof_edge_colors[i] = 7
+   else
+    cave_roof_edge_colors[i] = 1
+   end
+  
+   if cave_floor[i].y - helicopter_position.y - (i/2) < 8 then
+    cave_floor_edge_colors[i] = 7
+   else
+    cave_floor_edge_colors[i] = 1
+   end
+  end
+ end
+end
+
+function update_clock()
+ clock_frame += 1
+end
+
+function update_coins()
+ for coin in all(coins) do
+  if coin.x < camera_position.x - 8 then
+   dbg("del coin")
+   del(coins, coin)
+  end
+ end
+end
+
+function update_collision()
+ if explosion_position ~= nil then
+  return
+ end
+ collision_point = nil
+
+ for i = 1, hitbox_box.size.x do
+  local j = hitbox_box.position.x - camera_position.x + (hitbox_box.size.x - i)
+
+  local roof = cave_roof[j]
+  if hitbox_box:contains(roof) then
+   collision_point = roof
+   break
+  end
+
+  if hitbox_box.y1 < roof.y then
+   collision_point = helicopter_position + xy(4, 0)
+   break
+  end
+
+  local floor = cave_floor[j]
+  if hitbox_box:contains(floor) then
+   collision_point = floor
+   break
+  end
+
+  if hitbox_box.y2 > floor.y then
+   collision_point = helicopter_position + xy(4, 0)
+   break
+  end
+ end
+
+ if collision_point ~= nil then
+  dbg("boom " .. helicopter_position.x .. " " .. helicopter_position.y)
+  dbg(collision_point.x .. " " .. collision_point.y)
+  helicopter_alive = false
+  helicopter_died = clock_frame
+
+  camera(camera_position.x, camera_position.y)
+  line(
+   helicopter_position.x,
+   helicopter_position.y,
+   collision_point.x,
+   collision_point.y,
+   8
+  )
+
+  local dx = collision_point.x - helicopter_position.x
+  local dy = -(collision_point.y - helicopter_position.y)
+  local angle = atan2(dx, dy)
+  dbg(angle)
+
+  local p = xy(
+   helicopter_position.x + 8 * cos(angle),
+   helicopter_position.y - 8 * sin(angle)
+  )
+
+  if collision_point:below(helicopter_position) then
+   helicopter_velocity.y = -2
+  else
+   helicopter_velocity.y = 2
+  end
+ end
+end
+
+function update_explosion()
+ if explosion_position == nil and collision_point ~= nil then
+  if not collision_point:above(helicopter_position) then
+   dbg("m")
+   explosion_position = collision_point
+  end
+ end
+end
+
+function update_helicopter()
+ if explosion_position ~= nil then
+  helicopter_velocity = xy(0, 0)
+ else
+  helicopter_velocity += rotor_velocity + gravity_velocity
+  helicopter_velocity.y = mid(-1.5, helicopter_velocity.y, 1.9)
+  helicopter_position += helicopter_velocity
+ end
+
+ if helicopter_velocity.y > 0 and not rotor_engaged then
+  helicopter_inclination = "dropping"
+ elseif helicopter_velocity.y < 0 and rotor_engaged then
+  helicopter_inclination = "climbing"
+ else
+  helicopter_inclination = "hovering"
+ end
+end
+
+function update_hitbox()
+ if explosion_position == nil then
+  hitbox_box:move(helicopter_position + hitbox_offset)
+ end
+end
+
+function update_chunk()
+ for i = 1, camera_velocity.x do
+  local li = 128 - i + 1
+  local lx = cave_roof[128 - i].x + 1
+  local chunk_slice = pump_chunk()
+
+  local rp = xy(lx, chunk_start_roof + chunk_slice.roof)
+  local fp = xy(lx, chunk_start_floor + chunk_slice.floor)
+
+  add_cave(li, rp, fp)
+
+  if chunk_slice.coin ~= nil then
+   local cp = xy(lx, rp.y + ((fp.y - rp.y) * chunk_slice.coin))
+   add(coins, cp)
+  end
+ end
+end
+
+function update_rotor()
  rotor_engaged = btn(5)
- if rotor_engaged and not rotor_collision then
+ if helicopter_alive and rotor_engaged then
   rotor_velocity.y = -0.3
  else
   rotor_velocity.y = 0
  end
-
- if not helicopter_collision then
-  helicopter_velocity += rotor_velocity + gravity_velocity
-  helicopter_velocity.y = mid(-1.5, helicopter_velocity.y, 1.9)
-  helicopter_position += helicopter_velocity
-
-  helicopter_hitbox:move(helicopter_position + helicopter_hitbox_offset)
-
-  if helicopter_velocity.y > 0 and not rotor_engaged then
-   helicopter_inclination = "dropping"
-  elseif helicopter_velocity.y < 0 and rotor_engaged then
-   helicopter_inclination = "climbing"
-  else
-   helicopter_inclination = "hovering"
-  end
-
-  for x = helicopter_hitbox.x1, helicopter_hitbox.x2 do
-   local roof = xy(x, cave_roof[x])
-   local floor = xy(x, cave_floor[x])
-   if helicopter_hitbox:contains(roof) then
-    rotor_collision = roof
-    helicopter_velocity.y = 2
-    break
-   end
-
-   if helicopter_hitbox:contains(floor) then
-    helicopter_collision = floor
-    break
-   end
-  end
-
- end
-
 end
 
-function _draw()
- cls(8)
- camera(camera_position.x, camera_position.y)
+function update_smoke()
+ for i, puff in pairs(smoke_puffs) do
+  puff.position.x += puff.velocity.x / 16
+  puff.position.y += puff.velocity.y / 8
+  puff.age += 1
+  if puff.age % 20 == 0 then
+   puff.radius -= 1
+  end
+  if puff.radius < 0 then
+   del(smoke_puffs, smoke_puffs[1])
+  end
+ end
 
+ if helicopter_alive and clock_frame % 4 == 0 then
+  local puff_radius = 0
+  if rotor_engaged then
+   puff_radius = 1
+  end
+  add(smoke_puffs, {
+   position = helicopter_position - xy(8, 0),
+   velocity = helicopter_velocity,
+   radius = puff_radius,
+   age = 0,
+  })
+ end
+end
+
+-->8
+-- draw
+
+function _draw()
+ camera(camera_position.x, camera_position.y)
+ draw_cave()
+ draw_coins()
+ draw_smoke()
+ draw_helicopter()
+ draw_hitbox()
+ draw_collision()
+ draw_explosion()
+
+ camera(0, 0)
+ draw_overlay()
+end
+
+function draw_cave()
  local camera_top = camera_position.y - 2
  local camera_bottom = camera_position.y + 128 + 4
 
- for x = camera_position.x, camera_position.x + 128 do
-  local roof = cave_roof[x]
-  local floor = cave_floor[x]
+ for i = 1, 128 do
+  local x = i + camera_position.x - 1
+  local roof = cave_roof[i].y
+  local floor = cave_floor[i].y
 
   line(x, roof, x, floor, 0)
   line(x, camera_top, x, roof, 5)
+  line(x, roof, x, roof - cave_roof_blur_heights[i], cave_roof_blur_colors[i])
+  line(x, roof, x, roof - cave_roof_edge_heights[i], cave_roof_edge_colors[i])
   line(x, floor, x, camera_bottom, 5)
+  line(x, floor, x, floor + cave_floor_blur_heights[i], cave_floor_blur_colors[i])
+  line(x, floor, x, floor + cave_floor_edge_heights[i], cave_floor_edge_colors[i])
  end
+end
 
+function draw_coins()
+ for coin in all(coins) do
+  spr(64 + loop(clock_frame, 24, 24), coin.x, coin.y)
+ end
+end
+
+function draw_helicopter()
  local helicopter_sprite_column = ({
   hovering = 1,
   dropping = 2,
@@ -152,61 +439,495 @@ function _draw()
   helicopter_position.x - 8,
   helicopter_position.y + tail_y_offset - 4
  )
+end
 
+function draw_collision()
+ if collision_point == nil then
+  return
+ end
+
+ circ(
+  collision_point.x,
+  collision_point.y,
+  2,
+  12
+ )
+
+ circ(
+  helicopter_position.x,
+  helicopter_position.y,
+  2,
+  8
+ )
+
+end
+
+function draw_explosion()
+ if explosion_position ~= nil then
+  circfill(
+   explosion_position.x,
+   explosion_position.y,
+   8,
+   8
+  )
+ end
+end
+
+function draw_hitbox()
  rect(
-  helicopter_hitbox.x1,
-  helicopter_hitbox.y1,
-  helicopter_hitbox.x2,
-  helicopter_hitbox.y2,
+  hitbox_box.x1,
+  hitbox_box.y1,
+  hitbox_box.x2,
+  hitbox_box.y2,
   11
  )
 
- if rotor_collision ~= nil then
-  circ(
-   rotor_collision.x,
-   rotor_collision.y,
-   2,
-   8
+ for i = 1, hitbox_box.size.x do
+  pset(
+   hitbox_box.position.x + i,
+   hitbox_box.position.y + hitbox_box.size.y,
+   11
+  )
+
+  local roof_color = 11
+  local floor_color = 11
+  if hitbox_box:contains(cave_roof[hitbox_box.position.x - camera_position.x + i]) then
+   roof_color = 14
+  end
+  if hitbox_box:contains(cave_floor[hitbox_box.position.x - camera_position.x + i]) then
+   floor_color = 14
+  end
+
+  line(
+   hitbox_box.position.x + i,
+   cave_roof[hitbox_box.position.x - camera_position.x + i].y,
+   hitbox_box.position.x + i,
+   cave_roof[hitbox_box.position.x - camera_position.x + i].y - 1,
+   roof_color
+  )
+
+  line(
+   hitbox_box.position.x + i,
+   cave_floor[hitbox_box.position.x - camera_position.x + i].y,
+   hitbox_box.position.x + i,
+   cave_floor[hitbox_box.position.x - camera_position.x + i].y + 1,
+   floor_color
   )
  end
+end
 
- if helicopter_collision ~= nil then
-  circ(
-   helicopter_collision.x,
-   helicopter_collision.y,
-   2,
-   8
-  )
- end
+function draw_overlay()
+ draw_bar("cpu", stat(1), 1, 123)
+ draw_bar("chk", chunk_progress, 32, 123)
+ draw_bar("lvl", level_progress, 64, 123)
 
- camera(0, 0)
  for i,debug_message in pairs(debug_messages) do
    print(debug_message[1], 0, (i-1)*8, debug_message[2])
  end
-
- print(camera_position.x, 110, 1, 14)
- print(#cave_roof, 110, 8, 14)
- print(stat(0), 110, 16, 13)
 end
 
-function maxkey(tbl)
- local m = -999
- for k,v in pairs(tbl) do
-  if k > m then
-   m = k
-  end
- end
- return m
+function draw_bar(l, p, x, y)
+ line(x+1, y+1, x+14, y+1, 5)
+ line(x+1, y+1, x+14*p, y+1, 7)
+ rect(x, y, x+15, y+2, 1)
+ print(l, x+17, y-1, 7)
 end
 
-function minkey(tbl)
- local m = 9999
- for k,v in pairs(tbl) do
-  if k < m then
-   m = k
+function draw_smoke()
+ for i, puff in pairs(smoke_puffs) do
+  circ(puff.position.x, puff.position.y, puff.radius, 7)
+ end
+end
+
+-->8
+-- levels
+
+level = (function()
+ local level = {}
+
+ setmetatable(level, {
+  __call = function(_, chunks)
+   return {
+    chunks = chunks,
+   }
+  end
+ })
+
+ function level:bendup()
+  return level({
+   chunk:sine(),
+  })
+ end
+
+ function level:bottleneck()
+  return level({
+   chunk:narrow(),
+   chunk:widen(),
+  })
+ end
+
+ function level:circleup()
+  return level({
+   chunk:fourcircles(),
+  })
+ end
+
+ function level:easy()
+  return level({
+   chunk:straight(),
+  })
+ end
+
+ function level:pythagup()
+  return level({
+   chunk:pythag(16, 1, 1),
+   chunk:pythag(16, 1, -1),
+   chunk:pythag(16, -1, 1),
+   chunk:pythag(16, -1, -1),
+  })
+ end
+
+ function level:ubend()
+  return level({
+   chunk:ubend(),
+  })
+ end
+
+ return level
+end)()
+
+function next_level()
+ dbg("next level")
+
+ if #level_queue == 0 then
+  add(level_queue, level:easy())
+ end
+
+ local level_object = level_queue[1]
+ del(level_queue, level_object)
+
+ chunk_queue = level_object.chunks
+ level_length = #chunk_queue
+ level_progress = 0
+end
+
+
+-->8
+-- chunks
+
+chunk = (function()
+ local chunk = {}
+
+ setmetatable(chunk, {
+  __call = function(_, length, roof, floor, coins)
+   return {
+    length = length,
+    roof = roof,
+    floor = floor,
+    coins = coins or {},
+   }
+  end
+ })
+
+ function chunk:fourcircles()
+  return chunk(
+   128,
+   terrain:twocircles(64),
+   terrain:twocircles(64)
+  )
+ end
+
+ function chunk:narrow()
+  return chunk(
+   128,
+   terrain:noise(2) + terrain:descend(32) + terrain:sinewave(2, 2),
+   terrain:noise(2) + terrain:ascend(32) + terrain:sinewave(2, 2)
+  )
+ end
+
+ function chunk:pythag(l, direction, side)
+  return chunk(
+   l,
+   terrain:pythagstep(l, direction, side),
+   terrain:pythagstep(l, -direction, side)
+  )
+ end
+
+ function chunk:sine()
+  return chunk(
+   128,
+   terrain:curveup(512),
+   terrain:curveup(512)
+  )
+ end
+
+ function chunk:straight()
+  return chunk(
+   128,
+   terrain:noise(2),
+   terrain:noise(2),
+   {{ 0.9, 0.5 }}
+  )
+ end
+
+ function chunk:ubend()
+  return chunk(
+   256,
+   terrain:noise(1) + terrain:sinewave(8, 4) + terrain:fudge(24) + terrain:descend(128),
+   terrain:noise(1) + terrain:sinewave(8, 4) + terrain:fudge(-24) + terrain:descend(128),
+   {
+    { 0.2, 0.8 },
+    { 0.3, 0.2 },
+    { 0.45, 0.8 },
+    { 0.55, 0.2 },
+    { 0.7, 0.8 },
+    { 0.8, 0.2 },
+    { 0.95, 0.8 },
+    }
+  )
+ end
+
+ function chunk:widen()
+  return chunk(
+   64,
+   terrain:ascend(32) + terrain:sinewave(2, 2),
+   terrain:descend(32) + terrain:sinewave(2, 2)
+  )
+ end
+
+ return chunk
+end)()
+
+function next_chunk()
+ dbg("next chunk")
+ level_progress = (level_length - #chunk_queue) / level_length
+
+ if #chunk_queue == 0 then
+  next_level()
+ end
+
+ chunk_object = chunk_queue[1]
+ del(chunk_queue, chunk_object)
+ chunk_distance = 0
+ chunk_progress = 0
+ chunk_start_roof = cave_roof[127].y
+ chunk_start_floor = cave_floor[127].y
+ chunk_length = chunk_object.length
+ chunk_coins = chunk_object.coins
+end
+
+function pump_chunk()
+ if chunk_progress >= 1 then
+  next_chunk()
+ end
+
+ local rcl = chunk_length * max(helicopter_velocity.x, 1)
+ chunk_distance += 1
+ if chunk_distance == rcl then
+  chunk_progress = 1
+ else
+  chunk_progress = chunk_distance / rcl
+ end
+
+ local roof = chunk_object.roof(chunk_progress)
+ local floor = chunk_object.floor(chunk_progress)
+ local coin = nil
+
+ if #chunk_coins > 0 then
+  if chunk_coins[1][1] <= chunk_progress then
+   coin = chunk_coins[1][2]
+   del(chunk_coins, chunk_coins[1])
   end
  end
- return m
+
+ return {
+  roof = roof,
+  floor = floor,
+  coin = coin,
+ }
+end
+
+-->8
+-- terrain
+
+terrain = (function()
+ local terrain = {}
+
+ setmetatable(terrain, {
+  __call = function(_, fn)
+   local g = { fn }
+
+   setmetatable(g, {
+    __add = function(g1, g2)
+     add(g1, g2[1])
+     return g1
+    end,
+  
+    __call = function(_, p)
+     local o = 0
+     for f in all(g) do
+      o += f(p)
+     end
+     return o
+    end,
+   })
+  
+   return g
+
+  end
+ })
+
+ function terrain:ascend(depth)
+  return terrain(
+   function(p)
+    return p * -depth
+   end
+  )
+ end
+
+ function terrain:curveup(radius)
+  return terrain(
+   function(p)
+    local cx = p * radius
+    local c = xy(0, 0)
+    local p = xy(p*radius, radius)
+    local a = p:angle(c)
+    local y = radius * sin(a)
+    return y - radius
+   end
+  )
+ end
+
+ function terrain:descend(depth)
+  return terrain(
+   function(p)
+    return p * depth
+   end
+  )
+ end
+
+ function terrain:flat()
+  return terrain(
+   function(p)
+    return 0
+   end
+  )
+ end
+
+ function terrain:fudge(n)
+  return terrain(
+   function(p)
+    if p == 1 then
+     return 0
+    else
+     return n
+    end
+   end
+  )
+ end
+
+ function terrain:noise(n)
+  return terrain(
+   function(p)
+    if p == 1 then
+     return 0
+    else
+     return flr(rnd(n)) - n/2
+    end
+   end
+  )
+ end
+
+ function terrain:pythagstep(r, d, s)
+  return terrain(
+   function(p)
+    if s == -1 then
+     p = 1 - p
+    end
+    local a = flr(r*p)
+    local c = r
+    local py = sqrt(c^2 - a^2)
+    local y = r - py
+    if s == -1 and d == 1 then
+     y = py + 0
+    elseif s == -1 and d == -1 then
+     y = r - r - r + y
+    elseif d == -1 then
+     y = py - r
+    end
+    return y
+   end
+  )
+ end
+
+ function terrain:sinewave(magnitude, frequency)
+  return terrain(
+   function(p)
+    return sin(p * frequency) * magnitude
+   end
+  )
+ end
+
+ function terrain:twocircles(r1, r2)
+  return terrain(
+   function(p)
+    if p < 0.5 then
+     local p1 = p * 2
+     local y = sqrt(r1^2 - (p1 * r1)^2)
+     return y - r1
+    else
+     local p2 = 1 - ((p - 0.5) * 2)
+     local y = sqrt(r1^2 - (p2 * r1)^2)
+     return 0 - r1 - y
+    end
+   end
+  )
+ end
+
+ return terrain
+end)()
+
+-->8
+
+function add_cave(ci, new_roof, new_floor)
+ cave_roof[ci] = new_roof
+ cave_floor[ci] = new_floor
+
+ local from = max(1, ci - 4)
+ local to = min(127, ci + 4)
+
+ for i = from, to do
+  local roof = cave_roof[i].y or new_roof.y
+  local floor = cave_floor[i].y or new_floor.y
+
+  cave_floor_blur_heights[i] = tminmax(max, {
+   floor,
+   tgad(cave_floor, i - 1, 1, floor + 2),
+   tgad(cave_floor, i - 2, 1, floor + 2),
+   tgad(cave_floor, i + 1, 1, floor + 2),
+   tgad(cave_floor, i + 2, 1, floor + 2),
+  }) - floor
+
+  cave_floor_edge_heights[i] = tminmax(max, {
+   floor,
+   tgad(cave_floor, i - 1, 0, floor),
+   tgad(cave_floor, i + 1, 0, floor),
+  }) - floor
+
+  cave_roof_blur_heights[i] = roof - tminmax(min, {
+   roof,
+   tgad(cave_roof, i - 1, -1, roof),
+   tgad(cave_roof, i - 2, -1, roof),
+   tgad(cave_roof, i + 1, -1, roof),
+   tgad(cave_roof, i + 2, -1, roof),
+  })
+
+  cave_roof_edge_heights[i] = roof - tminmax(min, {
+   roof,
+   tgad(cave_roof, i - 1, 0, roof),
+   tgad(cave_roof, i + 1, 0, roof),
+  })
+ end
 end
 
 function dbg(message)
@@ -218,6 +939,11 @@ function dbg(message)
     debug_color = 8
   end
   add(debug_messages, { message, debug_color })
+end
+
+function speed(n)
+ camera_velocity.x = n
+ helicopter_velocity.x = n
 end
 
 function loop(n, m, o)
@@ -285,6 +1011,27 @@ function box(position, size)
  return box
 end
 
+function tgad(t, g, a, d)
+ if t[g] == nil or t[g].y == nil then
+  return d
+ else
+  return t[g].y + a
+ end
+end
+
+function tminmax(fn, t)
+ if #t == 0 then
+  return nil
+ elseif #t == 1 then
+  return t[1]
+ else
+  local m = t[1]
+  for i = 2, #t do
+   m = fn(m, t[i])
+  end
+  return m
+ end
+end
 
 
 __gfx__
