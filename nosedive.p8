@@ -53,7 +53,8 @@ function _init()
  end
 
  gravity_velocity = xy(0, 0.1)
- helicopter_collision = nil
+ helicopter_collision_frame = nil
+ helicopter_collision_point = nil
  helicopter_fragments = {}
  helicopter_fragments_colors = {0,0,0,0,0,3,4,11}
 
@@ -75,7 +76,8 @@ function _init()
   helicopter_position + helicopter_hitbox_offset,
   xy(8, 8)
  )
- rotor_collision = nil
+ rotor_collision_frame = nil
+ rotor_collision_point = nil
  rotor_engaged = false
  rotor_fragments = {}
  rotor_fragments_colors = {0,0,0,0,0,0,0,0,0,5,6,6,7,11}
@@ -125,14 +127,14 @@ function _update60()
  end
 
  rotor_engaged = btn(5)
- if rotor_engaged and not rotor_collision then
+ if rotor_engaged and not rotor_collision_frame then
   rotor_velocity.y = -0.3
  else
   rotor_velocity.y = 0
  end
 
  for i = 1, 128 do
-  if helicopter_collision then
+  if helicopter_collision_frame then
    cave_roof_edge_colors[i] = 1
    cave_floor_edge_colors[i] = 1
   elseif helicopter_position.x - camera_area.x1 > i then
@@ -154,7 +156,7 @@ function _update60()
  end
 
 
- if not helicopter_collision then
+ if not helicopter_collision_frame then
   helicopter_velocity += rotor_velocity + gravity_velocity
   helicopter_velocity.y = mid(
    helicopter_ascent_max,
@@ -165,7 +167,7 @@ function _update60()
 
   helicopter_hitbox:move(helicopter_position + helicopter_hitbox_offset)
 
-  if rotor_collision then
+  if rotor_collision_frame then
    helicopter_inclination = "dropping"
   elseif helicopter_velocity.y > 0 and not rotor_engaged then
    helicopter_inclination = "dropping"
@@ -181,7 +183,8 @@ function _update60()
    local floor = cave_floor[x]
 
    if helicopter_hitbox:contains(roof) then
-    rotor_collision = roof:copy()
+    rotor_collision_frame = clock_frame
+    rotor_collision_point = roof:copy()
     helicopter_velocity.y = 2
     helicopter_descent_max = 4
     for fragment in all(rotor_fragments) do
@@ -195,7 +198,8 @@ function _update60()
    end
 
    if helicopter_hitbox:contains(floor) then
-    helicopter_collision = floor:copy()
+    helicopter_collision_frame = clock_frame
+    helicopter_collision_point = floor:copy()
     for fragment in all(helicopter_fragments) do
      fragment.color = choose(helicopter_fragments_colors)
      fragment.position = helicopter_position
@@ -212,7 +216,7 @@ function _update60()
 
  end
 
- if rotor_collision then
+ if rotor_collision_frame then
   for f in all(rotor_fragments) do
    if not f.stopped then
     f.velocity += gravity_velocity
@@ -235,7 +239,7 @@ function _update60()
   end
  end
 
- if helicopter_collision then
+ if helicopter_collision_frame then
   for f in all(helicopter_fragments) do
    if not f.stopped then
     f.velocity.y += 0.5
@@ -340,7 +344,7 @@ function _draw()
   climbing = 3,
  })[helicopter_inclination]
 
- if not helicopter_collision then
+ if not helicopter_collision_frame then
   sspr(
    helicopter_sprite_x,
    0,
@@ -351,7 +355,7 @@ function _draw()
   )
  end
 
- if not rotor_collision and not helicopter_collision then
+ if not rotor_collision_frame and not helicopter_collision_frame then
   sspr(
    helicopter_sprite_x + 3,
    8 + loop(clock_frame, 32, 8) * 3,
@@ -380,7 +384,7 @@ function _draw()
   )
  end
 
- if rotor_collision ~= nil then
+ if rotor_collision_frame ~= nil then
 
   --circ(
    --rotor_collision.x,
@@ -398,7 +402,7 @@ function _draw()
   end
  end
 
- if helicopter_collision ~= nil then
+ if helicopter_collision_frame ~= nil then
   --circ(
    --helicopter_collision.x,
    --helicopter_collision.y,
@@ -422,6 +426,7 @@ function _draw()
  for i,debug_message in pairs(debug_messages) do
    print(debug_message[1], 0, (i-1)*8, debug_message[2])
  end
+ bar("cpu", stat(1), 1, 123)
 end
 
 function add_cave(i, roof, floor)
@@ -577,6 +582,12 @@ function tminmax(fn, t)
  end
 end
 
+function bar(l, p, x, y)
+ line(x+1, y+1, x+14, y+1, 5)
+ line(x+1, y+1, x+14*min(1,p), y+1, 7)
+ rect(x, y, x+15, y+2, 1)
+ print(l, x+17, y-1, 7)
+end
 
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
