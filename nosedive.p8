@@ -14,7 +14,7 @@ function _init()
  debug_color = 8
  gravity_velocity = xy(0, 0.1)
  helicopter_collision = nil
- helicopter_died = nil
+ helicopter_fragments = {}
  helicopter_inclination = "hovering"
  helicopter_position = xy(48, 80)
  helicopter_velocity = xy(2, 0)
@@ -70,7 +70,9 @@ function _update60()
 
   helicopter_hitbox:move(helicopter_position + helicopter_hitbox_offset)
 
-  if helicopter_velocity.y > 0 and not rotor_engaged then
+  if rotor_collision then
+   helicopter_inclination = "dropping"
+  elseif helicopter_velocity.y > 0 and not rotor_engaged then
    helicopter_inclination = "dropping"
   elseif helicopter_velocity.y < 0 and rotor_engaged then
    helicopter_inclination = "climbing"
@@ -89,10 +91,49 @@ function _update60()
 
    if helicopter_hitbox:contains(floor) then
     helicopter_collision = floor
+    for i = 1,128 do
+     add(helicopter_fragments, {
+       color = ({3,11})[flr(rnd(2)) + 1],
+       position = helicopter_position,
+       velocity = helicopter_velocity + xy(
+         -2 + rnd(4),
+         -3
+       )
+     })
+    end
     break
    end
   end
 
+ end
+
+ for f in all(helicopter_fragments) do
+  if not f.stopped then
+   f.velocity.y += 0.5
+   f.velocity.y = mid(-4, f.velocity.y, 1)
+   f.position += f.velocity
+  end
+
+  if f.position.x <= camera_position.x then
+   goto skip
+  end
+
+  if f.position.x > camera_position.x + 128 then
+   goto skip
+  end
+
+  local roof = cave_roof[flr(f.position.x)]
+  local floor = cave_floor[flr(f.position.x)]
+  if f.position.y <= roof then
+   f.stopped = true
+   -- f.velocity = xy(0, 0)
+  end
+  if f.position.y >= floor then
+   f.stopped = true
+   -- f.velocity = xy(0, 0)
+  end
+
+  ::skip::
  end
 
 end
@@ -127,31 +168,35 @@ function _draw()
   climbing = 3,
  })[helicopter_inclination]
 
- sspr(
-  helicopter_sprite_x,
-  0,
-  16,
-  8,
-  helicopter_position.x - 8,
-  helicopter_position.y - 4
- )
+ if not helicopter_collision then
+  sspr(
+   helicopter_sprite_x,
+   0,
+   16,
+   8,
+   helicopter_position.x - 8,
+   helicopter_position.y - 4
+  )
+ end
 
- sspr(
-  helicopter_sprite_x + 3,
-  8 + loop(clock_frame, 32, 8) * 3,
-  13,
-  3,
-  helicopter_position.x - 5,
-  helicopter_position.y - 5
- )
+ if not rotor_collision and not helicopter_collision then
+  sspr(
+   helicopter_sprite_x + 3,
+   8 + loop(clock_frame, 32, 8) * 3,
+   13,
+   3,
+   helicopter_position.x - 5,
+   helicopter_position.y - 5
+  )
 
- sspr(
-  helicopter_sprite_x,
-  8 + loop(clock_frame, 8, 8) * 3,
-  3, 3,
-  helicopter_position.x - 8,
-  helicopter_position.y + tail_y_offset - 4
- )
+  sspr(
+   helicopter_sprite_x,
+   8 + loop(clock_frame, 8, 8) * 3,
+   3, 3,
+   helicopter_position.x - 8,
+   helicopter_position.y + tail_y_offset - 4
+  )
+ end
 
  rect(
   helicopter_hitbox.x1,
@@ -176,6 +221,14 @@ function _draw()
    helicopter_collision.y,
    2,
    8
+  )
+ end
+
+ for f in all(helicopter_fragments) do
+  pset(
+   f.position.x,
+   f.position.y,
+   f.color
   )
  end
 
