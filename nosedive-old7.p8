@@ -5,39 +5,690 @@ __lua__
 -- by hen
 
 function _init()
-	cave = {}
+ clock_frame = 0
 
-	for x = 1,128 do
-		cave[x] = {{8, 119}}
-	end
+ debug_messages = {}
+ debug_color = 8
 
-	for x = 48, 64 do
-		cave[x] = {
-			{cave[x][1][1], 48},
-			{x, cave[x][1][2]},
-		}
-	end
+ update_mode = 0
+ update_camera = 1
+ update_cave = 2
+ update_helicopter = 4
+ update_rotor = 8
+ update_exhaust = 16
+ update_rotor_fragments = 32
+ update_helicopter_fragments = 64
+
+ update_enable(update_camera)
+ update_enable(update_cave)
+ update_enable(update_rotor)
+ update_enable(update_helicopter)
+ update_enable(update_exhaust)
+
+ draw_mode = 0
+ draw_cave = 1
+ draw_helicopter = 2
+ draw_rotor = 4
+ draw_exhaust = 8
+ draw_helicopter_fragments = 16
+ draw_rotor_fragments = 32
+ draw_hitbox = 64
+
+ draw_enable(draw_cave)
+ draw_enable(draw_helicopter)
+ draw_enable(draw_exhaust)
+ draw_enable(draw_rotor)
+
+ camera_area = box(
+  xy(1, 0),
+  xy(128, 128)
+ )
+ camera_velocity = xy(1, 0)
+
+ cave_floor = {}
+ cave_roof = {}
+
+ cave_floor_blur_colors = {}
+ cave_floor_blur_heights = {}
+ cave_floor_edge_colors = {}
+ cave_floor_edge_heights = {}
+
+ cave_roof_blur_colors = {}
+ cave_roof_blur_heights = {}
+ cave_roof_edge_colors = {}
+ cave_roof_edge_heights = {}
+
+ for x = 1, 128 do
+  add(cave_floor, xy(x, 127))
+  add(cave_roof, xy(x, 0))
+ end
+
+ cave_floor_blur_colors = fill(128, 1)
+ cave_floor_blur_heights = fill(128, 0)
+ cave_floor_edge_colors = fill(128, 7)
+ cave_floor_edge_heights = fill(128, 0)
+ cave_roof_blur_colors = fill(128, 1)
+ cave_roof_blur_heights = fill(128, 0)
+ cave_roof_edge_colors = fill(128, 7)
+ cave_roof_edge_heights = fill(128, 0)
+
+ for x = 1, 128 do
+  add_cave(
+   x, 
+   xy(x, 8 + rnd(2)),
+   xy(x, 119 + rnd(2))
+  )
+ end
+
+ gravity_velocity = xy(0, 0.1)
+ helicopter_exhaust = {}
+ helicopter_collision_frame = nil
+ helicopter_collision_point = nil
+ helicopter_fragments = {}
+ helicopter_fragments_colors = {0,0,0,0,0,3,4,11}
+
+ for i = 1,8 do
+  add(helicopter_exhaust, {
+   color = 6,
+   frame = clock_frame,
+   position = xy(0, 0),
+   radius = 1,
+   velocity = xy(0, 0)
+  })
+ end
+
+ for i = 1,128 do
+  add(helicopter_fragments, {
+   color = helicopter_fragments_colors[1],
+   position = xy(0, 0),
+   velocity = xy(0, 0)
+  })
+ end
+
+ helicopter_inclination = "hovering"
+ helicopter_ascent_max = -1.5
+ helicopter_descent_max = 2
+ helicopter_position = xy(48, 80)
+ helicopter_velocity = camera_velocity
+ helicopter_hitbox_offset = xy(-4, -4)
+ helicopter_hitbox = box(
+  helicopter_position + helicopter_hitbox_offset,
+  xy(8, 8)
+ )
+ rotor_collision_frame = nil
+ rotor_collision_point = nil
+ rotor_engaged = false
+ rotor_fragments = {}
+ rotor_fragments_colors = {0,0,0,0,0,0,0,0,0,5,6,6,7,11}
+
+ for i = 1,128 do
+  add(rotor_fragments, {
+   color = rotor_fragments_colors[1],
+   position = xy(0, 0),
+   velocity = xy(0, 0)
+  })
+ end
+
+ rotor_velocity = xy(0, 0)
 end
 
 function _update60()
+ clock_frame += 1
+
+ if (update_mode & update_camera) != 0 then
+  camera_area:move(camera_area.position + camera_velocity)
+ end
+
+ if (update_mode & update_cave) != 0 then
+  for i = 1, camera_velocity.x do
+   for j = 1, 127 do
+    cave_roof[j].x = cave_roof[j+1].x
+    cave_roof[j].y = cave_roof[j+1].y
+    cave_floor[j].x = cave_floor[j+1].x
+    cave_floor[j].y = cave_floor[j+1].y
+
+    cave_roof_blur_heights[j] = cave_roof_blur_heights[j+1]
+    cave_roof_edge_heights[j] = cave_roof_edge_heights[j+1]
+    cave_floor_blur_heights[j] = cave_floor_blur_heights[j+1]
+    cave_floor_edge_heights[j] = cave_floor_edge_heights[j+1]
+   end
+
+   add_cave(
+    128,
+    xy(
+     cave_roof[127].x + 1,
+     8 + rnd(2)
+    ),
+    xy(
+     cave_floor[127].x + 1,
+     119 + rnd(2)
+    )
+   )
+  end
+ end
+
+ if (update_mode & update_rotor) != 0 then
+  rotor_engaged = btn(5)
+  if rotor_engaged then
+   rotor_velocity.y = -0.3
+  else
+   rotor_velocity.y = 0
+  end
+ end
+
+ for i = 1, 128 do
+  if helicopter_collision_frame then
+   cave_roof_edge_colors[i] = 1
+   cave_floor_edge_colors[i] = 1
+  elseif helicopter_position.x - camera_area.x1 > i then
+   cave_roof_edge_colors[i] = 1
+   cave_floor_edge_colors[i] = 1
+  else
+   if helicopter_position.y - cave_roof[i].y - (i/2) < 8 then
+    cave_roof_edge_colors[i] = 7
+   else
+    cave_roof_edge_colors[i] = 1
+   end
+  
+   if cave_floor[i].y - helicopter_position.y - (i/2) < 8 then
+    cave_floor_edge_colors[i] = 7
+   else
+    cave_floor_edge_colors[i] = 1
+   end
+  end
+ end
+
+
+ if (update_mode & update_helicopter) != 0 then
+  helicopter_velocity += rotor_velocity + gravity_velocity
+  helicopter_velocity.y = mid(
+   helicopter_ascent_max,
+   helicopter_velocity.y,
+   helicopter_descent_max
+  )
+  helicopter_position += helicopter_velocity
+
+  helicopter_hitbox:move(helicopter_position + helicopter_hitbox_offset)
+
+  if rotor_collision_frame then
+   helicopter_inclination = "dropping"
+  elseif helicopter_velocity.y > 0 and not rotor_engaged then
+   helicopter_inclination = "dropping"
+  elseif helicopter_velocity.y < 0 and rotor_engaged then
+   helicopter_inclination = "climbing"
+  else
+   helicopter_inclination = "hovering"
+  end
+
+  for i = helicopter_hitbox.x1, helicopter_hitbox.x2 do
+   local x = i - camera_area.x1
+   local roof = cave_roof[x]
+   local floor = cave_floor[x]
+
+   if helicopter_hitbox:contains(roof) then
+    update_disable(update_rotor)
+    update_enable(update_rotor_fragments)
+    draw_disable(draw_rotor)
+    draw_enable(draw_rotor_fragments)
+    rotor_engaged = false
+    rotor_velocity.y = 0
+    rotor_collision_frame = clock_frame
+    rotor_collision_point = roof:copy()
+    helicopter_velocity.y = 2
+    helicopter_descent_max = 4
+    for fragment in all(rotor_fragments) do
+     fragment.color = choose(rotor_fragments_colors)
+     fragment.position = helicopter_position + xy(0, 4)
+     fragment.velocity = xy(
+      0 - helicopter_velocity.x*2 + rnd(helicopter_velocity.x*8),
+      0 - helicopter_velocity.y + rnd(helicopter_velocity.y * 2)
+     )
+    end
+   end
+
+   if helicopter_hitbox:contains(floor) then
+    update_disable(update_camera)
+    update_disable(update_cave)
+    update_disable(update_helicopter)
+    update_enable(update_helicopter_fragments)
+    draw_disable(draw_exhaust)
+    draw_disable(draw_helicopter)
+    draw_enable(draw_helicopter_fragments)
+    helicopter_collision_frame = clock_frame
+    helicopter_collision_point = floor:copy()
+    for fragment in all(helicopter_fragments) do
+     fragment.color = choose(helicopter_fragments_colors)
+     fragment.position = helicopter_position
+     fragment.velocity = helicopter_velocity + xy(
+      -1 + rnd(2),
+      -4 + rnd(3)
+     )
+    end
+    helicopter_velocity:zero()
+    camera_velocity:zero()
+   end
+  end
+ end
+
+ if (update_mode & update_exhaust) != 0 then
+  for puff in all(helicopter_exhaust) do
+   puff.position.x += puff.velocity.x / 16
+   puff.position.y += puff.velocity.y / 8
+   if (clock_frame - puff.frame) % 16 == 0 then
+    puff.radius -= 1
+   end
+  end
+
+  if clock_frame % 4 == 0 then
+   for i,puff in pairs(helicopter_exhaust) do
+    if i == #helicopter_exhaust then
+     puff.position = helicopter_position - xy(8, 0)
+     puff.frame = clock_frame
+     puff.velocity = helicopter_velocity
+     if rotor_engaged then
+      puff.radius = 1
+     else
+      puff.radius = 0
+     end
+    else
+     puff.frame = helicopter_exhaust[i+1].frame
+     puff.position = helicopter_exhaust[i+1].position
+     puff.radius = helicopter_exhaust[i+1].radius
+     puff.velocity = helicopter_exhaust[i+1].velocity
+    end
+   end
+  end
+ end
+
+ if (update_mode & update_rotor_fragments) != 0 then
+  for f in all(rotor_fragments) do
+   if not f.stopped then
+    f.velocity += gravity_velocity
+    f.velocity.y = mid(-4, f.velocity.y, 2)
+    f.position += f.velocity
+   end
+   local i = flr(f.position.x) - camera_area.x1
+   if i > 128 or i < 1 then
+    goto skipr
+   end
+   local roof = cave_roof[i]
+   local floor = cave_floor[i]
+   if f.position.y <= roof.y then
+    f.stopped = true
+   end
+   if f.position.y >= floor.y then
+    f.stopped = true
+   end
+   ::skipr::
+  end
+ end
+
+ if (update_mode & update_helicopter_fragments) != 0 then
+  for f in all(helicopter_fragments) do
+   if not f.stopped then
+    f.velocity.y += 0.5
+    f.velocity.y = mid(-4, f.velocity.y, 1)
+    f.position += f.velocity
+   end
+   local i = flr(f.position.x) - camera_area.x1
+   if i > 128 or i < 1 then
+    goto skiph
+   end
+   local roof = cave_roof[i]
+   local floor = cave_floor[i]
+   if f.position.y <= roof.y then
+    f.stopped = true
+   end
+   if f.position.y >= floor.y then
+    f.stopped = true
+   end
+   ::skiph::
+  end
+ end
 end
 
 function _draw()
-	camera(1, 0)
-	cls(0)
-	for x = 1,128 do
-		local y = 0
-		local slice = cave[x]
-		for gap in all(slice) do
-			local g1 = gap[1]
-			local g2 = gap[2]
-			line(x, y, x, g1-1, 6)
-			line(x, g1, x, g1, 12)
-			line(x, g1+1, x, g2, 7)
-			y = g2
-		end
-		line(x, y, x, 127, 6)
-	end
+ camera(camera_area.x1, camera_area.y1)
+
+ cls(8)
+
+ if (draw_mode & draw_cave) != 0 then
+  for i = 1, 128 do
+   local x = i + camera_area.x1 - 1
+   local roof = cave_roof[i]
+   local floor = cave_floor[i]
+   line(
+    roof.x,
+    roof.y,
+    floor.x,
+    floor.y,
+    0
+   )
+
+   line(
+    roof.x,
+    roof.y,
+    roof.x,
+    camera_area.y1,
+    5
+   )
+
+   line(
+    roof.x,
+    roof.y,
+    roof.x,
+    roof.y - cave_roof_blur_heights[i],
+    cave_roof_blur_colors[i]
+   )
+
+   line(
+    roof.x,
+    roof.y,
+    roof.x,
+    roof.y - cave_roof_edge_heights[i],
+    cave_roof_edge_colors[i]
+   )
+
+   line(
+    floor.x,
+    floor.y,
+    floor.x,
+    camera_area.y2,
+    5
+   )
+
+   line(
+    floor.x,
+    floor.y,
+    floor.x,
+    floor.y + cave_floor_blur_heights[i],
+    cave_floor_blur_colors[i]
+   )
+
+   line(
+    floor.x,
+    floor.y,
+    floor.x,
+    floor.y + cave_floor_edge_heights[i],
+    cave_floor_edge_colors[i]
+   )
+  end
+ end
+
+ if (draw_mode & draw_exhaust) != 0 then
+  for puff in all(helicopter_exhaust) do
+   circ(
+    puff.position.x,
+    puff.position.y,
+    puff.radius,
+    puff.color
+   )
+  end
+ end
+
+ local helicopter_sprite_column = ({
+  hovering = 1,
+  dropping = 2,
+  climbing = 3,
+ })[helicopter_inclination]
+
+ local helicopter_sprite_x = (helicopter_sprite_column - 1) * 16
+
+ local tail_y_offset = ({
+  hovering = 2,
+  dropping = 0,
+  climbing = 3,
+ })[helicopter_inclination]
+
+ if (draw_mode & draw_helicopter) != 0 then
+  sspr(
+   helicopter_sprite_x,
+   0,
+   16,
+   8,
+   helicopter_position.x - 8,
+   helicopter_position.y - 4
+  )
+ end
+
+ if (draw_mode & draw_rotor) != 0 then
+  sspr(
+   helicopter_sprite_x + 3,
+   8 + loop(clock_frame, 32, 8) * 3,
+   13,
+   3,
+   helicopter_position.x - 5,
+   helicopter_position.y - 5
+  )
+
+  sspr(
+   helicopter_sprite_x,
+   8 + loop(clock_frame, 8, 8) * 3,
+   3, 3,
+   helicopter_position.x - 8,
+   helicopter_position.y + tail_y_offset - 4
+  )
+ end
+
+ if (draw_mode & draw_hitbox) != 0 then
+  rect(
+   helicopter_hitbox.x1,
+   helicopter_hitbox.y1,
+   helicopter_hitbox.x2,
+   helicopter_hitbox.y2,
+   11
+  )
+ end
+
+ if (draw_mode & draw_rotor_fragments) != 0 then
+  for f in all(rotor_fragments) do
+   pset(
+    f.position.x,
+    f.position.y,
+    f.color
+   )
+  end
+ end
+
+ if (draw_mode & draw_helicopter_fragments) != 0 then
+  for f in all(helicopter_fragments) do
+   pset(
+    f.position.x,
+    f.position.y,
+    f.color
+   )
+  end
+ end
+
+ camera(0, 0)
+ for i,debug_message in pairs(debug_messages) do
+   print(debug_message[1], 0, (i-1)*8, debug_message[2])
+ end
+ bar("cpu", stat(1), 1, 123)
+end
+
+function add_cave(i, roof, floor)
+ cave_roof[i] = roof
+ cave_floor[i] = floor
+
+ for j = max(1, i - 4), min(127, i + 4) do
+  local r = cave_roof[j].y
+  local f = cave_floor[j].y
+
+  cave_floor_blur_heights[j] = tminmax(max, {
+   f,
+   tgad(cave_floor, j - 1, 1, f + 2),
+   tgad(cave_floor, j - 2, 1, f + 2),
+   tgad(cave_floor, j + 1, 1, f + 2),
+   tgad(cave_floor, j + 2, 1, f + 2),
+  }) - f
+
+  cave_floor_edge_heights[j] = tminmax(max, {
+   f,
+   tgad(cave_floor, j - 1, 0, f),
+   tgad(cave_floor, j + 1, 0, f),
+  }) - f
+
+  cave_roof_blur_heights[j] = r - tminmax(min, {
+   r,
+   tgad(cave_roof, j - 1, -1, r),
+   tgad(cave_roof, j - 2, -1, r),
+   tgad(cave_roof, j + 1, -1, r),
+   tgad(cave_roof, j + 2, -1, r),
+  })
+
+  cave_roof_edge_heights[j] = r - tminmax(min, {
+   r,
+   tgad(cave_roof, j - 1, 0, r),
+   tgad(cave_roof, j + 1, 0, r),
+  })
+ end
+end
+
+function flrrnd(n)
+ return flr(rnd(n))
+end
+
+function choose(table)
+ return table[flrrnd(#table) + 1]
+end
+
+function dbg(message)
+ while #debug_messages >= 4 do
+  del(debug_messages, debug_messages[1])
+ end
+ debug_color += 1
+ if debug_color > 15 then
+  debug_color = 8
+ end
+ add(debug_messages, { message, debug_color })
+end
+
+function loop(n, m, o)
+ return flr(n % m / flr(m / o))
+end
+
+function xy(x, y)
+ local p = { x = x or 0, y = y or 0 }
+  
+ setmetatable(p, {
+  __add = function(p1, p2)
+   return xy(p1.x + p2.x, p1.y + p2.y)
+  end,
+
+  __sub = function(p1, p2)
+   return xy(p1.x - p2.x, p1.y - p2.y)
+  end,
+
+  __lt = function(p1, p2)
+   return p1.x < p2.x and p1.y < p2.y
+  end,
+
+  __gt = function(p1, p2)
+   return p1.x > p2.x and p1.y > p2.y
+  end,
+ })
+
+ function p:angle(p2)
+  return atan2(p2.x - self.x, -(p2.y - self.y))
+ end
+
+ function p:above(p2)
+  return self.y < p2.y
+ end
+
+ function p:below(p2)
+  return self.y > p2.y
+ end
+
+ function p:copy()
+  return xy(self.x, self.y)
+ end
+
+ function p:zero()
+  self.x = 0
+  self.y = 0
+ end
+
+ return p
+end
+
+function box(position, size)
+ local box = {
+  position = position,
+  size = size,
+  x1 = position.x,
+  x2 = position.x + size.x,
+  y1 = position.y,
+  y2 = position.y + size.y,
+ }
+
+ function box:move(p)
+  self.position = p
+  self.x1 = p.x
+  self.x2 = p.x + size.x
+  self.y1 = p.y
+  self.y2 = p.y + size.y
+ end
+
+ function box:contains(p)
+  return p > self.position and p < self.position + self.size
+ end
+
+ return box
+end
+
+function tgad(t, g, a, d)
+ if t[g] == nil or t[g].y == nil then
+  return d
+ else
+  return t[g].y + a
+ end
+end
+
+function tminmax(fn, t)
+ if #t == 0 then
+  return nil
+ elseif #t == 1 then
+  return t[1]
+ else
+  local m = t[1]
+  for i = 2, #t do
+   m = fn(m, t[i])
+  end
+  return m
+ end
+end
+
+function bar(l, p, x, y)
+ line(x+1, y+1, x+14, y+1, 5)
+ line(x+1, y+1, x+14*min(1,p), y+1, 7)
+ rect(x, y, x+15, y+2, 1)
+ print(l, x+17, y-1, 7)
+end
+
+function update_enable(flag)
+ update_mode |= flag
+end
+
+function update_disable(flag)
+ update_mode &= ~flag
+end
+
+function draw_enable(flag)
+ draw_mode |= flag
+end
+
+function draw_disable(flag)
+ draw_mode &= ~flag
+end
+
+function fill(n, v)
+ local tbl = {}
+ for i = 1,n do
+  add(tbl, v)
+ end
+ return tbl
 end
 
 __gfx__
