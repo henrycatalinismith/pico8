@@ -10,6 +10,35 @@ function _init()
  debug_messages = {}
  debug_color = 8
 
+ update_mode = 0
+ update_camera = 1
+ update_cave = 2
+ update_helicopter = 4
+ update_rotor = 8
+ update_exhaust = 16
+ update_rotor_fragments = 32
+ update_helicopter_fragments = 64
+
+ update_enable(update_camera)
+ update_enable(update_cave)
+ update_enable(update_rotor)
+ update_enable(update_helicopter)
+ update_enable(update_exhaust)
+
+ draw_mode = 0
+ draw_cave = 1
+ draw_helicopter = 2
+ draw_rotor = 4
+ draw_exhaust = 8
+ draw_helicopter_fragments = 16
+ draw_rotor_fragments = 32
+ draw_hitbox = 64
+
+ draw_enable(draw_cave)
+ draw_enable(draw_helicopter)
+ draw_enable(draw_exhaust)
+ draw_enable(draw_rotor)
+
  camera_area = box(
   xy(1, 0),
   xy(128, 128)
@@ -53,10 +82,21 @@ function _init()
  end
 
  gravity_velocity = xy(0, 0.1)
+ helicopter_exhaust = {}
  helicopter_collision_frame = nil
  helicopter_collision_point = nil
  helicopter_fragments = {}
  helicopter_fragments_colors = {0,0,0,0,0,3,4,11}
+
+ for i = 1,8 do
+  add(helicopter_exhaust, {
+   color = 6,
+   frame = clock_frame,
+   position = xy(0, 0),
+   radius = 1,
+   velocity = xy(0, 0)
+  })
+ end
 
  for i = 1,128 do
   add(helicopter_fragments, {
@@ -91,46 +131,50 @@ function _init()
  end
 
  rotor_velocity = xy(0, 0)
-
- 
 end
 
 function _update60()
  clock_frame += 1
 
- camera_area:move(camera_area.position + camera_velocity)
-
- for i = 1, camera_velocity.x do
-  for j = 1, 127 do
-   cave_roof[j].x = cave_roof[j+1].x
-   cave_roof[j].y = cave_roof[j+1].y
-   cave_floor[j].x = cave_floor[j+1].x
-   cave_floor[j].y = cave_floor[j+1].y
-
-   cave_roof_blur_heights[j] = cave_roof_blur_heights[j+1]
-   cave_roof_edge_heights[j] = cave_roof_edge_heights[j+1]
-   cave_floor_blur_heights[j] = cave_floor_blur_heights[j+1]
-   cave_floor_edge_heights[j] = cave_floor_edge_heights[j+1]
-  end
-
-  add_cave(
-   128,
-   xy(
-    cave_roof[127].x + 1,
-    8 + rnd(2)
-   ),
-   xy(
-    cave_floor[127].x + 1,
-    119 + rnd(2)
-   )
-  )
+ if (update_mode & update_camera) != 0 then
+  camera_area:move(camera_area.position + camera_velocity)
  end
 
- rotor_engaged = btn(5)
- if rotor_engaged and not rotor_collision_frame then
-  rotor_velocity.y = -0.3
- else
-  rotor_velocity.y = 0
+ if (update_mode & update_cave) != 0 then
+  for i = 1, camera_velocity.x do
+   for j = 1, 127 do
+    cave_roof[j].x = cave_roof[j+1].x
+    cave_roof[j].y = cave_roof[j+1].y
+    cave_floor[j].x = cave_floor[j+1].x
+    cave_floor[j].y = cave_floor[j+1].y
+
+    cave_roof_blur_heights[j] = cave_roof_blur_heights[j+1]
+    cave_roof_edge_heights[j] = cave_roof_edge_heights[j+1]
+    cave_floor_blur_heights[j] = cave_floor_blur_heights[j+1]
+    cave_floor_edge_heights[j] = cave_floor_edge_heights[j+1]
+   end
+
+   add_cave(
+    128,
+    xy(
+     cave_roof[127].x + 1,
+     8 + rnd(2)
+    ),
+    xy(
+     cave_floor[127].x + 1,
+     119 + rnd(2)
+    )
+   )
+  end
+ end
+
+ if (update_mode & update_rotor) != 0 then
+  rotor_engaged = btn(5)
+  if rotor_engaged then
+   rotor_velocity.y = -0.3
+  else
+   rotor_velocity.y = 0
+  end
  end
 
  for i = 1, 128 do
@@ -156,7 +200,7 @@ function _update60()
  end
 
 
- if not helicopter_collision_frame then
+ if (update_mode & update_helicopter) != 0 then
   helicopter_velocity += rotor_velocity + gravity_velocity
   helicopter_velocity.y = mid(
    helicopter_ascent_max,
@@ -183,6 +227,12 @@ function _update60()
    local floor = cave_floor[x]
 
    if helicopter_hitbox:contains(roof) then
+    update_disable(update_rotor)
+    update_enable(update_rotor_fragments)
+    draw_disable(draw_rotor)
+    draw_enable(draw_rotor_fragments)
+    rotor_engaged = false
+    rotor_velocity.y = 0
     rotor_collision_frame = clock_frame
     rotor_collision_point = roof:copy()
     helicopter_velocity.y = 2
@@ -198,6 +248,13 @@ function _update60()
    end
 
    if helicopter_hitbox:contains(floor) then
+    update_disable(update_camera)
+    update_disable(update_cave)
+    update_disable(update_helicopter)
+    update_enable(update_helicopter_fragments)
+    draw_disable(draw_exhaust)
+    draw_disable(draw_helicopter)
+    draw_enable(draw_helicopter_fragments)
     helicopter_collision_frame = clock_frame
     helicopter_collision_point = floor:copy()
     for fragment in all(helicopter_fragments) do
@@ -211,12 +268,40 @@ function _update60()
     helicopter_velocity:zero()
     camera_velocity:zero()
    end
-
   end
-
  end
 
- if rotor_collision_frame then
+ if (update_mode & update_exhaust) != 0 then
+  for puff in all(helicopter_exhaust) do
+   puff.position.x += puff.velocity.x / 16
+   puff.position.y += puff.velocity.y / 8
+   if (clock_frame - puff.frame) % 16 == 0 then
+    puff.radius -= 1
+   end
+  end
+
+  if clock_frame % 4 == 0 then
+   for i,puff in pairs(helicopter_exhaust) do
+    if i == #helicopter_exhaust then
+     puff.position = helicopter_position - xy(8, 0)
+     puff.frame = clock_frame
+     puff.velocity = helicopter_velocity
+     if rotor_engaged then
+      puff.radius = 1
+     else
+      puff.radius = 0
+     end
+    else
+     puff.frame = helicopter_exhaust[i+1].frame
+     puff.position = helicopter_exhaust[i+1].position
+     puff.radius = helicopter_exhaust[i+1].radius
+     puff.velocity = helicopter_exhaust[i+1].velocity
+    end
+   end
+  end
+ end
+
+ if (update_mode & update_rotor_fragments) != 0 then
   for f in all(rotor_fragments) do
    if not f.stopped then
     f.velocity += gravity_velocity
@@ -239,7 +324,7 @@ function _update60()
   end
  end
 
- if helicopter_collision_frame then
+ if (update_mode & update_helicopter_fragments) != 0 then
   for f in all(helicopter_fragments) do
    if not f.stopped then
     f.velocity.y += 0.5
@@ -261,73 +346,85 @@ function _update60()
    ::skiph::
   end
  end
-
 end
 
 function _draw()
-
  camera(camera_area.x1, camera_area.y1)
 
  cls(8)
- for i = 1, 128 do
-  local x = i + camera_area.x1 - 1
-  local roof = cave_roof[i]
-  local floor = cave_floor[i]
-  line(
-   roof.x,
-   roof.y,
-   floor.x,
-   floor.y,
-   0
-  )
 
-  line(
-   roof.x,
-   roof.y,
-   roof.x,
-   camera_area.y1,
-   5
-  )
+ if (draw_mode & draw_cave) != 0 then
+  for i = 1, 128 do
+   local x = i + camera_area.x1 - 1
+   local roof = cave_roof[i]
+   local floor = cave_floor[i]
+   line(
+    roof.x,
+    roof.y,
+    floor.x,
+    floor.y,
+    0
+   )
 
-  line(
-   roof.x,
-   roof.y,
-   roof.x,
-   roof.y - cave_roof_blur_heights[i],
-   cave_roof_blur_colors[i]
-  )
+   line(
+    roof.x,
+    roof.y,
+    roof.x,
+    camera_area.y1,
+    5
+   )
 
-  line(
-   roof.x,
-   roof.y,
-   roof.x,
-   roof.y - cave_roof_edge_heights[i],
-   cave_roof_edge_colors[i]
-  )
+   line(
+    roof.x,
+    roof.y,
+    roof.x,
+    roof.y - cave_roof_blur_heights[i],
+    cave_roof_blur_colors[i]
+   )
 
-  line(
-   floor.x,
-   floor.y,
-   floor.x,
-   camera_area.y2,
-   5
-  )
+   line(
+    roof.x,
+    roof.y,
+    roof.x,
+    roof.y - cave_roof_edge_heights[i],
+    cave_roof_edge_colors[i]
+   )
 
-  line(
-   floor.x,
-   floor.y,
-   floor.x,
-   floor.y + cave_floor_blur_heights[i],
-   cave_floor_blur_colors[i]
-  )
+   line(
+    floor.x,
+    floor.y,
+    floor.x,
+    camera_area.y2,
+    5
+   )
 
-  line(
-   floor.x,
-   floor.y,
-   floor.x,
-   floor.y + cave_floor_edge_heights[i],
-   cave_floor_edge_colors[i]
-  )
+   line(
+    floor.x,
+    floor.y,
+    floor.x,
+    floor.y + cave_floor_blur_heights[i],
+    cave_floor_blur_colors[i]
+   )
+
+   line(
+    floor.x,
+    floor.y,
+    floor.x,
+    floor.y + cave_floor_edge_heights[i],
+    cave_floor_edge_colors[i]
+   )
+  end
+ end
+
+ if (draw_mode & draw_exhaust) != 0 then
+  for puff in all(helicopter_exhaust) do
+   circ(
+    puff.position.x,
+    puff.position.y,
+    puff.radius,
+    puff.color
+   )
+  end
  end
 
  local helicopter_sprite_column = ({
@@ -344,7 +441,7 @@ function _draw()
   climbing = 3,
  })[helicopter_inclination]
 
- if not helicopter_collision_frame then
+ if (draw_mode & draw_helicopter) != 0 then
   sspr(
    helicopter_sprite_x,
    0,
@@ -355,7 +452,7 @@ function _draw()
   )
  end
 
- if not rotor_collision_frame and not helicopter_collision_frame then
+ if (draw_mode & draw_rotor) != 0 then
   sspr(
    helicopter_sprite_x + 3,
    8 + loop(clock_frame, 32, 8) * 3,
@@ -374,7 +471,7 @@ function _draw()
   )
  end
 
- if false then
+ if (draw_mode & draw_hitbox) != 0 then
   rect(
    helicopter_hitbox.x1,
    helicopter_hitbox.y1,
@@ -384,15 +481,7 @@ function _draw()
   )
  end
 
- if rotor_collision_frame ~= nil then
-
-  --circ(
-   --rotor_collision.x,
-   --rotor_collision.y,
-   --2,
-   --8
-  --)
-
+ if (draw_mode & draw_rotor_fragments) != 0 then
   for f in all(rotor_fragments) do
    pset(
     f.position.x,
@@ -402,14 +491,7 @@ function _draw()
   end
  end
 
- if helicopter_collision_frame ~= nil then
-  --circ(
-   --helicopter_collision.x,
-   --helicopter_collision.y,
-   --2,
-   --8
-  --)
-
+ if (draw_mode & draw_helicopter_fragments) != 0 then
   for f in all(helicopter_fragments) do
    pset(
     f.position.x,
@@ -417,10 +499,7 @@ function _draw()
     f.color
    )
   end
-
  end
-
-
 
  camera(0, 0)
  for i,debug_message in pairs(debug_messages) do
@@ -587,6 +666,22 @@ function bar(l, p, x, y)
  line(x+1, y+1, x+14*min(1,p), y+1, 7)
  rect(x, y, x+15, y+2, 1)
  print(l, x+17, y-1, 7)
+end
+
+function update_enable(flag)
+ update_mode |= flag
+end
+
+function update_disable(flag)
+ update_mode &= ~flag
+end
+
+function draw_enable(flag)
+ draw_mode |= flag
+end
+
+function draw_disable(flag)
+ draw_mode &= ~flag
 end
 
 __gfx__
