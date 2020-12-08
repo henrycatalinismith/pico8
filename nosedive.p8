@@ -5,39 +5,229 @@ __lua__
 -- by hen
 
 function _init()
-	cave = {}
+ camera_x1 = 1
+ camera_y1 = 0
+ camera_x2 = camera_x1 + 128
+ camera_y2 = camera_y1 + 128
+ camera_vx = 1
+ camera_vy = 0
 
-	for x = 1,128 do
-		cave[x] = {{8, 119}}
-	end
+ cave_slices = fill(128, {2,127})
+ cave_x1 = 1
+ cave_x2 = cave_x1 + 128
+ cave_y1 = cave_slices[127][1]
+ cave_y2 = last(cave_slices[127])
 
-	for x = 48, 64 do
-		cave[x] = {
-			{cave[x][1][1], 48},
-			{x, cave[x][1][2]},
-		}
-	end
+ chunk_p = 0
+ chunk_x1 = cave_x1
+ chunk_x2 = chunk_x1 + 128 * camera_vx
+
+ tmp_chunk = chunk({
+  terrain_noise(2),
+  terrain_rock(0.4, 0.6) + terrain_y(64),
+  terrain_rock(0.4, 0.6) + terrain_y(67),
+  terrain_noise(2) + terrain_y(127),
+ })
+ tmp_terrain = terrain_noise(2)
+
+ debug_messages = {}
+ debug_color = 8
+
+ for x = 48, 64 do
+  cave_slices[x] = {
+   cave_slices[x][1],
+   48,
+   64,
+   cave_slices[x][2],
+  }
+ end
 end
 
 function _update60()
+ camera_x1 += camera_vx
+ camera_y1 += camera_vy
+ camera_x2 = camera_x1 + 128
+ camera_y2 = camera_y1 + 128
+
+ for i = 1,camera_vx do
+  for j = 1, 127 do
+   cave_slices[j] = cave_slices[j+1]
+  end
+
+  cave_x1 += 1
+  cave_x2 = cave_x1 + 128
+
+  if cave_x1 < chunk_x2 then
+   chunk_p = (cave_x1 - chunk_x1) / (chunk_x2 - chunk_x1)
+  elseif cave_x1 == chunk_x2 then
+   chunk_p = 1
+  else
+   chunk_p = 0
+   chunk_x1 = cave_x1
+   chunk_x2 = chunk_x1 + 128 * camera_vx
+   cave_y1 = cave_slices[127][1]
+   cave_y2 = last(cave_slices[127])
+  end
+
+  tmp_slice = tmp_chunk(chunk_p)
+  if #tmp_slice == 4 then
+   dbg(
+    tmp_slice[1] .. ", " ..
+    tmp_slice[2] .. ", " ..
+    tmp_slice[3] .. ", " ..
+    tmp_slice[4]
+   )
+  end
+
+  cave_slices[128] = {
+   cave_y1 + tmp_slice[1],
+   tmp_slice[2],
+  }
+ end
+
 end
 
 function _draw()
-	camera(1, 0)
-	cls(0)
-	for x = 1,128 do
-		local y = 0
-		local slice = cave[x]
-		for gap in all(slice) do
-			local g1 = gap[1]
-			local g2 = gap[2]
-			line(x, y, x, g1-1, 6)
-			line(x, g1, x, g1, 12)
-			line(x, g1+1, x, g2, 7)
-			y = g2
-		end
-		line(x, y, x, 127, 6)
-	end
+ camera(camera_x1, camera_y1)
+ cls(6)
+
+ for i = 1,128 do
+  local x = camera_x1+i-1
+  local y = camera_y1
+  local slice = cave_slices[i]
+
+  for j = 1,#slice do
+   if (j % 2) == 1 then
+    y = slice[j]
+    line(x, y, x, slice[j], 0)
+   else
+    line(x, y, x, slice[j], 0)
+   end
+   --if (j % 2) == 0 then
+    --roof
+    --y = slice[j]
+   --else
+    --floor
+    --line(x, y, x, slice[j], 6)
+   --end
+  end
+  --line(x, y, x, camera_y2, 6)
+
+  if x == chunk_x2 then
+   line(x, camera_y1, x, camera_y1, 8)
+   line(x, camera_y2-1, x, camera_y2, 8)
+  end
+ end
+
+ camera(0, 0)
+ for i,debug_message in pairs(debug_messages) do
+   print(debug_message[1], 0, ((i-1)*8)+96, debug_message[2])
+ end
+end
+
+function dbg(message)
+ while #debug_messages >= 4 do
+  del(debug_messages, debug_messages[1])
+ end
+ debug_color += 1
+ if debug_color > 15 then
+  debug_color = 8
+ end
+ add(debug_messages, { message, debug_color })
+end
+
+function fill(n, v)
+ local tbl = {}
+ for i = 1,n do
+  add(tbl, v)
+ end
+ return tbl
+end
+
+function flrrnd(n)
+ return flr(rnd(n))
+end
+
+function last(t)
+ return t[#t]
+end
+
+function chunk(terrains)
+ return function(p)
+  local values = {}
+  local slice = {}
+  for t in all(terrains) do
+   local v = t(p)
+   if v ~= nil then
+    add(values, t(p))
+   end
+  end
+  sort(values)
+  return values
+ end
+end
+
+function terrain(fn)
+ local g = { fn }
+ setmetatable(g, {
+  __add = function(g1, g2)
+   add(g1, g2[1])
+   return g1
+  end,
+  __call = function(_, p)
+   local o = 0
+   for f in all(g) do
+    local v = f(p)
+    if v == nil then
+     return nil
+    else
+     o += f(p)
+    end
+   end
+   return o
+  end,
+ })
+ return g
+end
+
+function terrain_y(y)
+ return terrain(
+  function(p)
+   return y
+  end
+ )
+end
+
+function terrain_rock(from, to)
+ return terrain(
+  function(p)
+   if p > from and p < to then
+    return 0
+   end
+  end
+ )
+end
+
+function terrain_noise(n)
+ return terrain(
+  function(p)
+   if p == 1 then
+    return 0
+   else
+    return flrrnd(n) - n/2
+   end
+  end
+ )
+end
+
+function sort(a)
+ for i=1,#a do
+  local j = i
+  while j > 1 and a[j-1] > a[j] do
+   a[j],a[j-1] = a[j-1],a[j]
+   j = j - 1
+  end
+ end
 end
 
 __gfx__
