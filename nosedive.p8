@@ -64,6 +64,11 @@ function _init()
   + terrain_y(112),
  })
 
+ tmp_chunk = chunk({
+   terrain_noise(2) + terrain_fudge(24),
+   terrain_noise(2) + terrain_fudge(24) + terrain_y(64),
+ })
+
  tmp_terrain = terrain_noise(2)
 
  debug_messages = {}
@@ -81,7 +86,7 @@ function _init()
  hitbox_x1 = helicopter_x - 4
  hitbox_y1 = helicopter_y - 4
  hitbox_x2 = hitbox_x1 + 8
- hitbox_y2 = hitbox_y1 + 8
+ hitbox_y2 = hitbox_y1 + 6
 
  rotor_engaged = false
  rotor_vy = 0
@@ -205,7 +210,40 @@ function _update60()
   hitbox_x1 = helicopter_x - 4
   hitbox_y1 = helicopter_y - 4
   hitbox_x2 = hitbox_x1 + 8
-  hitbox_y2 = hitbox_y1 + 8
+  hitbox_y2 = hitbox_y1 + 6
+
+  for x = hitbox_x1,hitbox_x2 do
+   local i = x-camera_x1
+   local roof = cave_slices[i][1]
+   local floor = cave_slices[i][#cave_slices[i]]
+   if hitbox_y2 < roof or hitbox_y2 > floor then
+    dbg("helicopter collision")
+
+    rotor_engaged = false
+    rotor_vy = 0
+    helicopter_vy = 0
+    helicopter_vx = 0
+    update_disable(update_camera)
+    update_disable(update_cave)
+    update_disable(update_helicopter)
+    update_disable(update_hitbox)
+    --draw_disable(draw_helicopter)
+    draw_disable(draw_rotor)
+    draw_disable(draw_hitbox)
+    break
+
+   elseif hitbox_y1 < roof then
+    dbg("rotor collision")
+    rotor_engaged = false
+    rotor_vy = 0
+    helicopter_vy = 2
+    helicopter_max_vy = 4
+    update_disable(update_rotor)
+    draw_disable(draw_rotor)
+    draw_disable(draw_hitbox)
+    break
+   end
+  end
  end
 
 end
@@ -213,32 +251,35 @@ end
 function _draw()
  camera(camera_x1, camera_y1)
 
+ cls(0)
+
  if draw(draw_cave) then
+  local rx1 = camera_x1-1
+  local ry1 = cave_slices[1][1]
+  local rx2 = camera_x1-1
+  local ry2 = cave_slices[1][1]
+  local fx1 = camera_x1-1
+  local fy1 = cave_slices[1][#cave_slices[1]]
+  local fx2 = camera_x1-1
+  local fy2 = cave_slices[1][#cave_slices[1]]
+  line(rx1, ry1, rx2, ry2, 6)
+  line(fx1, fy1, fx2, fy2, 6)
   for i = 1,128 do
    local x = camera_x1+i-1
-   local y = camera_y1
-   local slice = cave_slices[i]
-
-   line(x, y, x, slice[1]-4, 5)
-   line(x, slice[1]-2, 1)
-   line(x, slice[1], 6)
-   for j = 2, #slice do
-    if (j%2) == 0 then
-     line(x, slice[j], 0)
-     line(x, slice[j]+2, 6)
-     line(x, slice[j]+4, 1)
-    else
-     line(x, slice[j]-4, 5)
-     line(x, slice[j]-2, 1)
-     line(x, slice[j], 6)
-    end
-   end
-   line(x, camera_y2, 5)
-
-   if x == chunk_x2 then
-    line(x, camera_y1, x, camera_y1, 8)
-    line(x, camera_y2-1, x, camera_y2, 8)
-   end
+   rx2 = x
+   ry2 = cave_slices[i][1]-1
+   fx2 = x
+   fy2 = cave_slices[i][#cave_slices[i]]+1
+   line(x, camera_y1-1, x, ry2, 5)
+   line(rx1, ry1-2, rx2, ry2-1, 1)
+   line(rx1, ry1, rx2, ry2, 7)
+   line(x, camera_y2+2, x, fy2, 5)
+   line(fx1, fy1+2, fx2, fy2+1, 1)
+   line(fx1, fy1, fx2, fy2, 7)
+   rx1 = rx2
+   ry1 = ry2
+   fx1 = fx2
+   fy1 = fy2
   end
  end
 
@@ -291,6 +332,12 @@ function _draw()
    hitbox_y2,
    11
   )
+
+  for x = hitbox_x1,hitbox_x2 do
+   local i = x-camera_x1
+   pset(x, cave_slices[i][1], 11)
+   pset(x, cave_slices[i][#cave_slices[i]], 11)
+  end
  end
 
  camera(0, 0)
@@ -404,6 +451,18 @@ function terrain_descend(depth)
  return terrain(
   function(p)
    return p * depth
+  end
+ )
+end
+
+function terrain_fudge(n)
+ return terrain(
+  function(p)
+   if p == 1 then
+    return 0
+   else
+    return n
+   end
   end
  )
 end
