@@ -11,8 +11,6 @@ function _init()
  update_helicopter = 4
  update_rotor = 8
  update_hitbox = 16
- update_rotor_fragments = 32
- update_helicopter_fragments = 64
 
  update_enable(update_camera)
  update_enable(update_cave)
@@ -25,8 +23,6 @@ function _init()
  draw_helicopter = 2
  draw_rotor = 4
  draw_hitbox = 8
- draw_rotor_fragments = 16
- draw_helicopter_fragments = 32
 
  draw_enable(draw_cave)
  draw_enable(draw_helicopter)
@@ -68,11 +64,6 @@ function _init()
   + terrain_y(112),
  })
 
- tmp_chunk = chunk({
-   terrain_noise(2) + terrain_fudge(24),
-   terrain_noise(2) + terrain_fudge(24) + terrain_y(64),
- })
-
  tmp_terrain = terrain_noise(2)
 
  debug_messages = {}
@@ -90,37 +81,11 @@ function _init()
  hitbox_x1 = helicopter_x - 4
  hitbox_y1 = helicopter_y - 4
  hitbox_x2 = hitbox_x1 + 8
- hitbox_y2 = hitbox_y1 + 6
+ hitbox_y2 = hitbox_y1 + 8
 
  rotor_engaged = false
  rotor_vy = 0
  rotor_power = -0.3
-
- rotor_fragments = {}
- rotor_fragments_colors = {0,0,0,0,0,0,0,0,0,5,6,6,7,11}
-
- for i = 1,128 do
-  add(rotor_fragments, {
-   color = rotor_fragments_colors[1],
-   x = 0,
-   y = 0,
-   vx = 0,
-   vy = 0,
-  })
- end
-
- helicopter_fragments = {}
- helicopter_fragments_colors = {0,0,0,0,0,3,4,11}
-
- for i = 1,128 do
-  add(helicopter_fragments, {
-   color = helicopter_fragments_colors[1],
-   x = 0,
-   y = 0,
-   vx = 0,
-   vy = 0,
-  })
- end
 
  for x = 48, 64 do
   cave_slices[x] = {
@@ -240,99 +205,7 @@ function _update60()
   hitbox_x1 = helicopter_x - 4
   hitbox_y1 = helicopter_y - 4
   hitbox_x2 = hitbox_x1 + 8
-  hitbox_y2 = hitbox_y1 + 6
-
-  for x = hitbox_x1,hitbox_x2 do
-   local i = x-camera_x1
-   local roof = cave_slices[i][1]
-   local floor = cave_slices[i][#cave_slices[i]]
-   if hitbox_y2 < roof or hitbox_y2 > floor then
-    dbg("helicopter collision")
-
-    for fragment in all(helicopter_fragments) do
-     fragment.color = choose(helicopter_fragments_colors)
-     fragment.x = helicopter_x
-     fragment.y = helicopter_y
-     fragment.vx = helicopter_vx + (-1+rnd(2))
-     fragment.vy = 0 - rnd(2)
-    end
-
-    rotor_engaged = false
-    rotor_vy = 0
-    helicopter_vy = 0
-    helicopter_vx = 0
-    update_disable(update_camera)
-    update_disable(update_cave)
-    update_disable(update_helicopter)
-    update_disable(update_hitbox)
-    update_enable(update_helicopter_fragments)
-    draw_disable(draw_rotor)
-    draw_disable(draw_hitbox)
-    draw_disable(draw_helicopter)
-    draw_enable(draw_helicopter_fragments)
-    break
-
-   elseif hitbox_y1 < roof then
-    dbg("rotor collision")
-
-    for fragment in all(rotor_fragments) do
-     fragment.color = choose(rotor_fragments_colors)
-     fragment.x = helicopter_x
-     fragment.y = helicopter_y + 4
-     fragment.vx = helicopter_vx*-1 + rnd(helicopter_vx*4)
-     fragment.vy = 0 - helicopter_vy*8 + rnd(helicopter_vy*8)
-    end
-
-    rotor_engaged = false
-    rotor_vy = 0
-    helicopter_vy = 2
-    helicopter_max_vy = 4
-    update_disable(update_rotor)
-    update_enable(update_rotor_fragments)
-    draw_disable(draw_rotor)
-    draw_disable(draw_hitbox)
-    draw_enable(draw_rotor_fragments)
-    break
-   end
-  end
- end
-
- if update(update_rotor_fragments) then
-  for f in all(rotor_fragments) do
-   if not f.stop then
-    f.vy += 0.1
-    f.vy = mid(-4, f.vy, 2)
-    f.x += f.vx
-    f.y += f.vy
-   end
-   local i = flr(f.x) - camera_x1
-   if i > 128 or i < 1 then
-    f.stop = true
-   elseif f.y < cave_slices[i][1] then
-    f.stop = true
-   elseif f.y > last(cave_slices[i]) then
-    f.stop = true
-   end
-  end
- end
-
- if update(update_helicopter_fragments) then
-  for f in all(helicopter_fragments) do
-   if not f.stop then
-    f.vy += 0.1
-    f.vy = mid(-4, f.vy, 2)
-    f.x += f.vx
-    f.y += f.vy
-   end
-   local i = flr(f.x) - camera_x1
-   if i > 128 or i < 1 then
-    f.stop = true
-   elseif f.y < cave_slices[i][1] then
-    f.stop = true
-   elseif f.y > last(cave_slices[i]) then
-    f.stop = true
-   end
-  end
+  hitbox_y2 = hitbox_y1 + 8
  end
 
 end
@@ -340,35 +213,32 @@ end
 function _draw()
  camera(camera_x1, camera_y1)
 
- cls(0)
-
  if draw(draw_cave) then
-  local rx1 = camera_x1-1
-  local ry1 = cave_slices[1][1]
-  local rx2 = camera_x1-1
-  local ry2 = cave_slices[1][1]
-  local fx1 = camera_x1-1
-  local fy1 = cave_slices[1][#cave_slices[1]]
-  local fx2 = camera_x1-1
-  local fy2 = cave_slices[1][#cave_slices[1]]
-  line(rx1, ry1, rx2, ry2, 6)
-  line(fx1, fy1, fx2, fy2, 6)
   for i = 1,128 do
    local x = camera_x1+i-1
-   rx2 = x
-   ry2 = cave_slices[i][1]-1
-   fx2 = x
-   fy2 = cave_slices[i][#cave_slices[i]]+1
-   line(x, camera_y1-1, x, ry2, 5)
-   line(rx1, ry1-2, rx2, ry2-1, 1)
-   line(rx1, ry1, rx2, ry2, 7)
-   line(x, camera_y2+2, x, fy2, 5)
-   line(fx1, fy1+2, fx2, fy2+1, 1)
-   line(fx1, fy1, fx2, fy2, 7)
-   rx1 = rx2
-   ry1 = ry2
-   fx1 = fx2
-   fy1 = fy2
+   local y = camera_y1
+   local slice = cave_slices[i]
+
+   line(x, y, x, slice[1]-4, 5)
+   line(x, slice[1]-2, 1)
+   line(x, slice[1], 6)
+   for j = 2, #slice do
+    if (j%2) == 0 then
+     line(x, slice[j], 0)
+     line(x, slice[j]+2, 6)
+     line(x, slice[j]+4, 1)
+    else
+     line(x, slice[j]-4, 5)
+     line(x, slice[j]-2, 1)
+     line(x, slice[j], 6)
+    end
+   end
+   line(x, camera_y2, 5)
+
+   if x == chunk_x2 then
+    line(x, camera_y1, x, camera_y1, 8)
+    line(x, camera_y2-1, x, camera_y2, 8)
+   end
   end
  end
 
@@ -421,32 +291,6 @@ function _draw()
    hitbox_y2,
    11
   )
-
-  for x = hitbox_x1,hitbox_x2 do
-   local i = x-camera_x1
-   pset(x, cave_slices[i][1], 11)
-   pset(x, cave_slices[i][#cave_slices[i]], 11)
-  end
- end
-
- if draw(draw_rotor_fragments) then
-  for f in all(rotor_fragments) do
-   pset(
-    f.x,
-    f.y,
-    f.color
-   )
-  end
- end
-
- if draw(draw_helicopter_fragments) then
-  for f in all(helicopter_fragments) do
-   pset(
-    f.x,
-    f.y,
-    f.color
-   )
-  end
  end
 
  camera(0, 0)
@@ -564,18 +408,6 @@ function terrain_descend(depth)
  )
 end
 
-function terrain_fudge(n)
- return terrain(
-  function(p)
-   if p == 1 then
-    return 0
-   else
-    return n
-   end
-  end
- )
-end
-
 function terrain_sinewave(magnitude, frequency)
  return terrain(
   function(p)
@@ -622,10 +454,6 @@ function sort(a)
    j = j - 1
   end
  end
-end
-
-function choose(table)
- return table[flrrnd(#table) + 1]
 end
 
 __gfx__
