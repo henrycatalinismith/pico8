@@ -29,6 +29,7 @@ function _init()
  draw_hitbox = 8
  draw_debris = 16
  draw_coins = 32
+ draw_debug = 64
 
  draw_enable(draw_cave)
  draw_enable(draw_helicopter)
@@ -36,6 +37,7 @@ function _init()
  --draw_enable(draw_hitbox)
  draw_enable(draw_coins)
  draw_enable(draw_debris)
+ --draw_enable(draw_debug)
 
  clock_frame = 0
 
@@ -472,8 +474,10 @@ function _draw()
  end
 
  camera(0, 0)
- for i,debug_message in pairs(debug_messages) do
-   print(debug_message[1], 0, ((i-1)*8)+96, debug_message[2])
+ if draw(draw_debug) then
+  for i,debug_message in pairs(debug_messages) do
+    print(debug_message[1], 0, ((i-1)*8)+96, debug_message[2])
+  end
  end
 end
 
