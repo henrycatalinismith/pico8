@@ -5,14 +5,44 @@ __lua__
 -- by hen
 
 function _init()
+ update_mode = 0
+ update_camera = 1
+ update_cave = 2
+ update_helicopter = 4
+ update_rotor = 8
+ update_hitbox = 16
+
+ update_enable(update_camera)
+ update_enable(update_cave)
+ update_enable(update_helicopter)
+ update_enable(update_rotor)
+ update_enable(update_hitbox)
+
+ draw_mode = 0
+ draw_cave = 1
+ draw_helicopter = 2
+ draw_rotor = 4
+ draw_hitbox = 8
+
+ draw_enable(draw_cave)
+ draw_enable(draw_helicopter)
+ draw_enable(draw_rotor)
+ draw_enable(draw_hitbox)
+
+ clock_frame = 0
+
  camera_x1 = 1
  camera_y1 = 0
  camera_x2 = camera_x1 + 128
  camera_y2 = camera_y1 + 128
  camera_vx = 1
  camera_vy = 0
+ camera_ideal_y1 = camera_y1
+ camera_error_y1 = 0
+ camera_offset_y1 = 0
+ camera_error_count = 0
 
- cave_slices = fill(128, {2,127})
+ cave_slices = fill(128, {8,118})
  cave_x1 = 1
  cave_x2 = cave_x1 + 128
  cave_y1 = cave_slices[127][1]
@@ -23,15 +53,39 @@ function _init()
  chunk_x2 = chunk_x1 + 128 * camera_vx
 
  tmp_chunk = chunk({
-  terrain_noise(2),
-  terrain_rock(0.4, 0.6) + terrain_y(64),
-  terrain_rock(0.4, 0.6) + terrain_y(67),
-  terrain_noise(2) + terrain_y(127),
+  terrain_noise(2)
+  + terrain_descend(128)
+  + terrain_sinewave(8, 2),
+  terrain_rock(0.4, 0.5) + terrain_y(64) + terrain_descend(128),
+  terrain_rock(0.4, 0.5) + terrain_y(72) + terrain_descend(128),
+  terrain_noise(2)
+  + terrain_descend(128)
+  + terrain_sinewave(8, 2)
+  + terrain_y(112),
  })
+
  tmp_terrain = terrain_noise(2)
 
  debug_messages = {}
  debug_color = 8
+
+ helicopter_x = 48
+ helicopter_y = 80
+ helicopter_vx = 1
+ helicopter_vy = 0
+ helicopter_inclination = "hovering"
+ helicopter_gravity = 0.1
+ helicopter_min_vy = -1.5
+ helicopter_max_vy = 2
+
+ hitbox_x1 = helicopter_x - 4
+ hitbox_y1 = helicopter_y - 4
+ hitbox_x2 = hitbox_x1 + 8
+ hitbox_y2 = hitbox_y1 + 8
+
+ rotor_engaged = false
+ rotor_vy = 0
+ rotor_power = -0.3
 
  for x = 48, 64 do
   cave_slices[x] = {
@@ -44,79 +98,199 @@ function _init()
 end
 
 function _update60()
- camera_x1 += camera_vx
- camera_y1 += camera_vy
- camera_x2 = camera_x1 + 128
- camera_y2 = camera_y1 + 128
+ clock_frame += 1
 
- for i = 1,camera_vx do
-  for j = 1, 127 do
-   cave_slices[j] = cave_slices[j+1]
-  end
+ if update(update_camera) then
+  camera_ideal_y1 = avg({
+   cave_slices[32][1] + 1,
+   last(cave_slices[32]),
+   cave_slices[96][1] + 1,
+   last(cave_slices[96]),
+  }) - 64
 
-  cave_x1 += 1
-  cave_x2 = cave_x1 + 128
+  camera_offset_y1 = camera_y1 - camera_ideal_y1
+  camera_error_y1 = abs(camera_offset_y1)
 
-  if cave_x1 < chunk_x2 then
-   chunk_p = (cave_x1 - chunk_x1) / (chunk_x2 - chunk_x1)
-  elseif cave_x1 == chunk_x2 then
-   chunk_p = 1
+  if camera_error_y1 < 1 then
+   camera_error_count = 0
   else
-   chunk_p = 0
-   chunk_x1 = cave_x1
-   chunk_x2 = chunk_x1 + 128 * camera_vx
-   cave_y1 = cave_slices[127][1]
-   cave_y2 = last(cave_slices[127])
+   camera_error_count += 1
   end
 
-  tmp_slice = tmp_chunk(chunk_p)
-  if #tmp_slice == 4 then
-   dbg(
-    tmp_slice[1] .. ", " ..
-    tmp_slice[2] .. ", " ..
-    tmp_slice[3] .. ", " ..
-    tmp_slice[4]
-   )
+  camera_vy = flr(
+   camera_offset_y1
+   * (camera_error_count / 256)
+   * -1
+  )
+
+  camera_x1 += camera_vx
+  camera_y1 += camera_vy
+  camera_x2 = camera_x1 + 128
+  camera_y2 = camera_y1 + 128
+ end
+
+ if update(update_cave) then
+  for i = 1,camera_vx do
+   for j = 1, 127 do
+    cave_slices[j] = cave_slices[j+1]
+   end
+
+   cave_x1 += 1
+   cave_x2 = cave_x1 + 128
+
+   if cave_x1 < chunk_x2 then
+    chunk_p = (cave_x1 - chunk_x1) / (chunk_x2 - chunk_x1)
+   elseif cave_x1 == chunk_x2 then
+    chunk_p = 1
+   else
+    dbg("nxtchunk")
+
+    tmp_chunk = chunk({
+     terrain_noise(2),
+     terrain_rock(0.4, 0.5) + terrain_y(64),
+     terrain_rock(0.4, 0.5) + terrain_y(72),
+     terrain_noise(2) + terrain_y(112),
+    })
+
+    chunk_p = 0
+    chunk_x1 = cave_x1
+    chunk_x2 = chunk_x1 + 128 * camera_vx
+    cave_y1 = cave_slices[127][1]
+    cave_y2 = last(cave_slices[127])
+   end
+
+   tmp_slice = tmp_chunk(chunk_p)
+
+   cave_slices[128] = {}
+   for p in all(tmp_slice) do
+    add(
+     cave_slices[128],
+     cave_y1 + p
+    )
+   end
+  end
+ end
+
+ if update(update_rotor) then
+  rotor_engaged = btn(5)
+  if rotor_engaged then
+   rotor_vy = rotor_power
+  else
+   rotor_vy = 0
+  end
+ end
+
+ if update(update_helicopter) then
+  helicopter_vy += helicopter_gravity
+  helicopter_vy += rotor_vy
+  helicopter_vy = mid(
+   helicopter_min_vy,
+   helicopter_vy,
+   helicopter_max_vy
+  )
+  helicopter_x += helicopter_vx
+  helicopter_y += helicopter_vy
+
+  if helicopter_vy > 0 and not rotor_engaged then
+   helicopter_inclination = "dropping"
+  elseif helicopter_vy < 0 and rotor_engaged then
+   helicopter_inclination = "climbing"
+  else
+   helicopter_inclination = "hovering"
   end
 
-  cave_slices[128] = {
-   cave_y1 + tmp_slice[1],
-   tmp_slice[2],
-  }
+ end
+
+ if update(update_hitbox) then
+  hitbox_x1 = helicopter_x - 4
+  hitbox_y1 = helicopter_y - 4
+  hitbox_x2 = hitbox_x1 + 8
+  hitbox_y2 = hitbox_y1 + 8
  end
 
 end
 
 function _draw()
  camera(camera_x1, camera_y1)
- cls(6)
 
- for i = 1,128 do
-  local x = camera_x1+i-1
-  local y = camera_y1
-  local slice = cave_slices[i]
+ if draw(draw_cave) then
+  for i = 1,128 do
+   local x = camera_x1+i-1
+   local y = camera_y1
+   local slice = cave_slices[i]
 
-  for j = 1,#slice do
-   if (j % 2) == 1 then
-    y = slice[j]
-    line(x, y, x, slice[j], 0)
-   else
-    line(x, y, x, slice[j], 0)
+   line(x, y, x, slice[1]-4, 5)
+   line(x, slice[1]-2, 1)
+   line(x, slice[1], 6)
+   for j = 2, #slice do
+    if (j%2) == 0 then
+     line(x, slice[j], 0)
+     line(x, slice[j]+2, 6)
+     line(x, slice[j]+4, 1)
+    else
+     line(x, slice[j]-4, 5)
+     line(x, slice[j]-2, 1)
+     line(x, slice[j], 6)
+    end
    end
-   --if (j % 2) == 0 then
-    --roof
-    --y = slice[j]
-   --else
-    --floor
-    --line(x, y, x, slice[j], 6)
-   --end
-  end
-  --line(x, y, x, camera_y2, 6)
+   line(x, camera_y2, 5)
 
-  if x == chunk_x2 then
-   line(x, camera_y1, x, camera_y1, 8)
-   line(x, camera_y2-1, x, camera_y2, 8)
+   if x == chunk_x2 then
+    line(x, camera_y1, x, camera_y1, 8)
+    line(x, camera_y2-1, x, camera_y2, 8)
+   end
   end
+ end
+
+ local helicopter_sprite_column = ({
+  hovering = 1,
+  dropping = 2,
+  climbing = 3,
+ })[helicopter_inclination]
+ local helicopter_sprite_x = (helicopter_sprite_column - 1) * 16
+ local tail_y_offset = ({
+  hovering = 2,
+  dropping = 0,
+  climbing = 3,
+ })[helicopter_inclination]
+
+ if draw(draw_helicopter) then
+  sspr(
+   helicopter_sprite_x,
+   0,
+   16,
+   8,
+   helicopter_x - 8,
+   helicopter_y - 4
+  )
+ end
+
+ if draw(draw_rotor) then
+  sspr(
+   helicopter_sprite_x + 3,
+   8 + loop(clock_frame, 32, 8) * 3,
+   13,
+   3,
+   helicopter_x - 5,
+   helicopter_y - 5
+  )
+  sspr(
+   helicopter_sprite_x,
+   8 + loop(clock_frame, 8, 8) * 3,
+   3, 3,
+   helicopter_x - 8,
+   helicopter_y + tail_y_offset - 4
+  )
+ end
+
+ if draw(draw_hitbox) then
+  rect(
+   hitbox_x1,
+   hitbox_y1,
+   hitbox_x2,
+   hitbox_y2,
+   11
+  )
  end
 
  camera(0, 0)
@@ -134,6 +308,42 @@ function dbg(message)
   debug_color = 8
  end
  add(debug_messages, { message, debug_color })
+end
+
+function update(flag)
+ return (update_mode & flag) != 0
+end
+
+function update_enable(flag)
+ update_mode |= flag
+end
+
+function update_disable(flag)
+ update_mode &= ~flag
+end
+
+function draw(flag)
+ return (draw_mode & flag) != 0
+end
+
+function draw_enable(flag)
+ draw_mode |= flag
+end
+
+function draw_disable(flag)
+ draw_mode &= ~flag
+end
+
+function loop(n, m, o)
+ return flr(n % m / flr(m / o))
+end
+
+function avg(l)
+ local t = 0
+ for i in all(l) do
+  t += i
+ end
+ return t / #l
 end
 
 function fill(n, v)
@@ -188,6 +398,22 @@ function terrain(fn)
   end,
  })
  return g
+end
+
+function terrain_descend(depth)
+ return terrain(
+  function(p)
+   return p * depth
+  end
+ )
+end
+
+function terrain_sinewave(magnitude, frequency)
+ return terrain(
+  function(p)
+   return sin(p * frequency) * magnitude
+  end
+ )
 end
 
 function terrain_y(y)
