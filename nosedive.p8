@@ -37,7 +37,7 @@ function _init()
  --draw_enable(draw_hitbox)
  draw_enable(draw_coins)
  draw_enable(draw_debris)
- --draw_enable(draw_debug)
+ draw_enable(draw_debug)
 
  clock_frame = 0
 
@@ -45,7 +45,7 @@ function _init()
  camera_y1 = 0
  camera_x2 = camera_x1 + 128
  camera_y2 = camera_y1 + 128
- camera_vx = 2
+ camera_vx = 1
  camera_vy = 0
  camera_ideal_y1 = camera_y1
  camera_error_y1 = 0
@@ -61,32 +61,40 @@ function _init()
  chunk_p = 0
  chunk_x1 = cave_x1
  chunk_x2 = chunk_x1 + 128 * camera_vx
+ chunk_queue = {}
 
- tmp_chunk = chunk({
-   terrain_noise(8) + terrain_fudge(24),
-   terrain_noise(32) + terrain_fudge(24) + terrain_y(64),
- })
+ add(chunk_queue, chunk({
+  terrain_noise(8),
+   terrain_rock(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, -1),
+   terrain_rock(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, 1),
+  terrain_static(184) + terrain_circletest(64, -1),
+ }))
 
- tmp_chunk = chunk({
-  terrain_noise(2),
-  terrain_rock(0.4, 0.5) + terrain_y(64),
-  terrain_rock(0.4, 0.5) + terrain_y(72),
-  terrain_noise(2) + terrain_y(112),
- })
+ add(chunk_queue, chunk({
+  terrain_noise(8),
+  terrain_noise(8) + terrain_static(112),
+ }))
 
- tmp_chunk = chunk({
-  terrain_noise(2)
-  + terrain_descend(128)
-  + terrain_sinewave(8, 2),
-  terrain_rock(0.4, 0.5) + terrain_y(64) + terrain_descend(128),
-  terrain_rock(0.4, 0.5) + terrain_y(72) + terrain_descend(128),
-  terrain_noise(2)
-  + terrain_descend(128)
-  + terrain_sinewave(8, 2)
-  + terrain_y(112),
- })
+ if false then
+  add(chunk_queue, chunk({
+   terrain_noise(2),
+   terrain_rock(0.4, 0.5) + terrain_static(64),
+   terrain_rock(0.4, 0.5) + terrain_static(72),
+   terrain_noise(2) + terrain_static(112),
+  }))
 
- tmp_terrain = terrain_noise(2)
+  add(chunk_queue, chunk({
+   terrain_noise(2)
+   + terrain_descend(128)
+   + terrain_sinewave(8, 2),
+   terrain_rock(0.4, 0.5) + terrain_static(64) + terrain_descend(128),
+   terrain_rock(0.4, 0.5) + terrain_static(72) + terrain_descend(128),
+   terrain_noise(2)
+   + terrain_descend(128)
+   + terrain_sinewave(8, 2)
+   + terrain_static(112),
+  }))
+ end
 
  coins = {}
 
@@ -176,26 +184,34 @@ function _update60()
    elseif cave_x1 == chunk_x2 then
     chunk_p = 1
    else
-    dbg("nxtchunk")
-
-    tmp_chunk = chunk({
-     terrain_noise(2),
-     terrain_rock(0.4, 0.5) + terrain_y(64),
-     terrain_rock(0.4, 0.5) + terrain_y(72),
-     terrain_noise(2) + terrain_y(112),
-    })
+    dbg("nxtchunk " .. cave_y2 - cave_y1)
 
     chunk_p = 0
     chunk_x1 = cave_x1
     chunk_x2 = chunk_x1 + 128 * camera_vx
     cave_y1 = cave_slices[127][1]
     cave_y2 = last(cave_slices[127])
+
+    del(chunk_queue, chunk_queue[1])
+
+    if #chunk_queue < 1 then
+     add(chunk_queue, chunk_slope(flrrnd(112)+16))
+     
+     --add(chunk_queue, chunk({
+      --terrain_noise(2),
+      --terrain_rock(0.4, 0.5) + terrain_static(64),
+      --terrain_rock(0.4, 0.5) + terrain_static(72),
+      --terrain_noise(2) + terrain_static(112),
+     --}))
+    end
+
+
    end
 
-   tmp_slice = tmp_chunk(chunk_p)
+   next_slice = chunk_queue[1](chunk_p)
 
    cave_slices[128] = {}
-   for p in all(tmp_slice) do
+   for p in all(next_slice) do
     add(
      cave_slices[128],
      cave_y1 + p
@@ -275,8 +291,8 @@ function _update60()
      for i = 1,8 do
       add(debris, {
        color = choose({9,10}),
-       x = coin.x,
-       y = coin.y,
+       x = coin.x1,
+       y = coin.y1,
        vx = helicopter_vx + 1 - rnd(2),
        vy = helicopter_vy - rnd(4),
       })
@@ -311,22 +327,23 @@ function _update60()
 
  if update(update_coins) then
   for coin in all(coins) do
-   if coin.x + 8 < camera_x1
+   if coin.x2 < camera_x1
     or coin.hit and clock_frame - coin.hit > 16 then
     del(coins, coin)
    end
   end
   while #coins < 2 do
    local x1 = camera_x2 + 8
-   local y1 = cave_slices[128][1] + 64
+   local y1 = (cave_slices[128][1] + (
+    cave_slices[128][2] - 
+    cave_slices[128][1]
+   ) / 2) - 5
    if coins[#coins] then
-    x1 = coins[#coins].x + 64
+    x1 = coins[#coins].x1 + 64
    end
    local x2 = x1+9
    local y2 = y1+9
    add(coins, {
-     x = x1,
-     y = cave_slices[128][1] + 64,
      x1 = x1,
      y1 = y1,
      x2 = x2,
@@ -346,9 +363,9 @@ function _draw()
  if draw(draw_coins) then
   for coin in all(coins) do
    if coin.hit then
-    spr(88 + clock_frame - coin.hit, coin.x+1, coin.y+1)
+    spr(88 + clock_frame - coin.hit, coin.x1+1, coin.y1+1)
    else
-    spr(64 + loop(clock_frame, 24, 24), coin.x+1, coin.y+1)
+    spr(64 + loop(clock_frame, 24, 24), coin.x1+1, coin.y1+1)
    end
   end
  end
@@ -613,6 +630,16 @@ function chunk(terrains)
  end
 end
 
+function chunk_slope(height)
+ local h = cave_y2 - cave_y1
+ local d = (h-height)/2
+ dbg(height .. " h: " .. h .. ", d: " .. d)
+ return chunk({
+  terrain_linear(d, 1),
+  terrain_static(h) + terrain_linear(d, -1),
+ })
+end
+
 function terrain(fn)
  local g = { fn }
  setmetatable(g, {
@@ -634,6 +661,45 @@ function terrain(fn)
   end,
  })
  return g
+end
+
+function terrain_circletest(r, d)
+ return terrain(
+  function(p)
+   local y = sqrt(r^2 - ((-1+(p*2))*r)^2)
+   return y*d - r
+  end
+ )
+end
+
+function terrain_pythagstep(r, d, s)
+ return terrain(
+  function(p)
+   if s == -1 then
+    p = 1 - p
+   end
+   local a = flr(r*p)
+   local c = r
+   local py = sqrt(c^2 - a^2)
+   local y = r - py
+   if s == -1 and d == 1 then
+    y = py + 0
+   elseif s == -1 and d == -1 then
+    y = r - r - r + y
+   elseif d == -1 then
+    y = py - r
+   end
+   return y
+  end
+ )
+end
+
+function terrain_linear(y, d)
+ return terrain(
+  function(p)
+   return p * y * d
+  end
+ )
 end
 
 function terrain_descend(depth)
@@ -664,7 +730,7 @@ function terrain_sinewave(magnitude, frequency)
  )
 end
 
-function terrain_y(y)
+function terrain_static(y)
  return terrain(
   function(p)
    return y

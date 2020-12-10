@@ -12,10 +12,10 @@ function _init()
 
  level_queue = {
   level:easy(),
-  level:ubend(),
   level:pythagup(),
-  level:easy(),
+  level:ubend(),
   level:circleup(),
+  level:easy(),
   level:bendup(),
   level:bottleneck(),
   level:easy(),
