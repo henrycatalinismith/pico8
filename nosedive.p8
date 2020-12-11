@@ -771,18 +771,16 @@ end
 
 function terrain_rocks(y)
  return
-  terrain_flicker(1)
+  terrain_flicker(5, 0b10101)
   + terrain_static(y)
   + terrain_circletest(20, 1)
 end
 
--- turn terrain on and off t times across the chunk
-function terrain_flicker(t)
+function terrain_flicker(t, b)
  local s = 1/t/2
  return terrain(
   function(p)
-   local m = flr(p/s)
-   if (m%2)==1 then
+   if b & 2^(t-ceil(p*t)) > 0 then
     return 0
    end
   end
