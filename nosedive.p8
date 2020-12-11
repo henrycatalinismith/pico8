@@ -13,6 +13,7 @@ function _init()
  update_hitbox = 16
  update_debris = 32
  update_coins = 64
+ update_smoke = 128
 
  update_enable(update_camera)
  update_enable(update_cave)
@@ -21,6 +22,7 @@ function _init()
  update_enable(update_hitbox)
  update_enable(update_coins)
  update_enable(update_debris)
+ update_enable(update_smoke)
 
  draw_mode = 0
  draw_cave = 1
@@ -30,6 +32,7 @@ function _init()
  draw_debris = 16
  draw_coins = 32
  draw_debug = 64
+ draw_smoke = 128
 
  draw_enable(draw_cave)
  draw_enable(draw_helicopter)
@@ -38,6 +41,7 @@ function _init()
  draw_enable(draw_coins)
  draw_enable(draw_debris)
  draw_enable(draw_debug)
+ draw_enable(draw_smoke)
 
  clock_frame = 0
 
@@ -63,8 +67,13 @@ function _init()
  chunk_x2 = chunk_x1 + 128 * camera_vx
  chunk_queue = {}
 
+ -- add(chunk_queue, chunk({
+  -- terrain_static(32) + terrain_circletest(32, -1),
+  -- terrain_static(100) + terrain_circletest(47, -1),
+ -- }))
+
  add(chunk_queue, chunk({
-  terrain_noise(8),
+  terrain_noise(1),
    terrain_range(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, -1),
    terrain_range(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, 1),
    terrain_rocks(48),
@@ -73,25 +82,25 @@ function _init()
  }))
 
  add(chunk_queue, chunk({
-  terrain_noise(8),
-  terrain_noise(8) + terrain_static(112),
+  terrain_noise(3),
+  terrain_noise(3) + terrain_static(112),
  }))
 
  if false then
   add(chunk_queue, chunk({
-   terrain_noise(2),
+   terrain_noise(1),
    terrain_range(0.4, 0.5) + terrain_static(64),
    terrain_range(0.4, 0.5) + terrain_static(72),
-   terrain_noise(2) + terrain_static(112),
+   terrain_noise(1) + terrain_static(112),
   }))
 
   add(chunk_queue, chunk({
-   terrain_noise(2)
+   terrain_noise(1)
    + terrain_descend(128)
    + terrain_sinewave(8, 2),
    terrain_range(0.4, 0.5) + terrain_static(64) + terrain_descend(128),
    terrain_range(0.4, 0.5) + terrain_static(72) + terrain_descend(128),
-   terrain_noise(2)
+   terrain_noise(1)
    + terrain_descend(128)
    + terrain_sinewave(8, 2)
    + terrain_static(112),
@@ -134,6 +143,8 @@ function _init()
    cave_slices[x][2],
   }
  end
+
+ smoke = {}
 end
 
 function _update60()
@@ -314,7 +325,7 @@ function _update60()
    if is_space(d.x + d.vx, d.y) then
     d.x += d.vx
    else
-    d.vx *= rnd(0.1) * -1
+    d.vx *= rnd(0.3) * -1 * d.vx
     d.vy = 0
    end
 
@@ -364,6 +375,37 @@ function _update60()
   end
  end
 
+ if update(update_smoke) then
+  if helicopter_collision_frame == nil and clock_frame % 4 == 0 then
+   local radius = 0
+   if rotor_collision_frame then
+    radius = 2
+   elseif rotor_engaged then
+    radius = 1
+   end
+   add(smoke, {
+    x = helicopter_x - 8,
+    y = helicopter_y,
+    vx = helicopter_vx,
+    vy = helicopter_vy,
+    radius = radius,
+    age = 0,
+   })
+  end
+
+  for i, puff in pairs(smoke) do
+   puff.x += puff.vx / 16
+   puff.y += puff.vy / 8
+   puff.age += 1
+   if puff.age % 20 == 0 then
+    puff.radius -= 1
+   end
+   if puff.radius < 0 then
+    del(smoke, puff)
+   end
+  end
+
+ end
 end
 
 function _draw()
@@ -373,10 +415,13 @@ function _draw()
 
  if draw(draw_coins) then
   for coin in all(coins) do
+   local x = coin.x1+1
+   local y = coin.y1
+   y += loop(clock_frame, 48, 2)
    if coin.hit then
-    spr(88 + clock_frame - coin.hit, coin.x1+1, coin.y1+1)
+    spr(88 + clock_frame - coin.hit, x, y)
    else
-    spr(64 + loop(clock_frame, 24, 24), coin.x1+1, coin.y1+1)
+    spr(64 + loop(clock_frame, 24, 24), x, y)
    end
   end
  end
@@ -395,6 +440,7 @@ function _draw()
   for i = 1,128 do
    local slice = cave_slices[i]
    local x = camera_x1+i-1
+
    rx2 = x
    ry2 = slice[1]-1
    fx2 = x
@@ -412,13 +458,11 @@ function _draw()
 
    if #slice > 2 then
     for j = 2,#slice-2,2 do
-     line(
-      x,
-      slice[j],
-      x,
-      slice[j+1],
-      5
-     )
+     line(x, slice[j]+1, x, slice[j]+1, 7)
+     line(x, slice[j]+2, x, slice[j]+2, 1)
+     line(x, slice[j]+3, x, slice[j+1]-2, 5)
+     line(x, slice[j+1]-2, x, slice[j+1]-2, 1)
+     line(x, slice[j+1]-1, x, slice[j+1]-1, 7)
     end
    end
   end
@@ -498,6 +542,12 @@ function _draw()
     f.y,
     f.color
    )
+  end
+ end
+
+ if draw(draw_smoke) then
+  for i, puff in pairs(smoke) do
+   circ(puff.x, puff.y, puff.radius, 7)
   end
  end
 
@@ -771,13 +821,12 @@ end
 
 function terrain_rocks(y)
  return
-  terrain_flicker(5, 0b10101)
+  terrain_flicker(7, 0b0101010)
   + terrain_static(y)
   + terrain_circletest(20, 1)
 end
 
 function terrain_flicker(t, b)
- local s = 1/t/2
  return terrain(
   function(p)
    if b & 2^(t-ceil(p*t)) > 0 then
@@ -811,7 +860,7 @@ function terrain_noise(n)
    if p == 1 then
     return 0
    else
-    return flrrnd(n) - n/2
+    return flrrnd(2^n) - 2^n/2
    end
   end
  )
