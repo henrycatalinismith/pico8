@@ -65,9 +65,11 @@ function _init()
 
  add(chunk_queue, chunk({
   terrain_noise(8),
-   terrain_rock(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, -1),
-   terrain_rock(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, 1),
-  terrain_static(184) + terrain_circletest(64, -1),
+   terrain_range(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, -1),
+   terrain_range(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, 1),
+   terrain_rocks(64),
+   terrain_rocks(72),
+  terrain_static(100) + terrain_circletest(16, 1),
  }))
 
  add(chunk_queue, chunk({
@@ -78,8 +80,8 @@ function _init()
  if false then
   add(chunk_queue, chunk({
    terrain_noise(2),
-   terrain_rock(0.4, 0.5) + terrain_static(64),
-   terrain_rock(0.4, 0.5) + terrain_static(72),
+   terrain_range(0.4, 0.5) + terrain_static(64),
+   terrain_range(0.4, 0.5) + terrain_static(72),
    terrain_noise(2) + terrain_static(112),
   }))
 
@@ -87,8 +89,8 @@ function _init()
    terrain_noise(2)
    + terrain_descend(128)
    + terrain_sinewave(8, 2),
-   terrain_rock(0.4, 0.5) + terrain_static(64) + terrain_descend(128),
-   terrain_rock(0.4, 0.5) + terrain_static(72) + terrain_descend(128),
+   terrain_range(0.4, 0.5) + terrain_static(64) + terrain_descend(128),
+   terrain_range(0.4, 0.5) + terrain_static(72) + terrain_descend(128),
    terrain_noise(2)
    + terrain_descend(128)
    + terrain_sinewave(8, 2)
@@ -199,8 +201,8 @@ function _update60()
      
      --add(chunk_queue, chunk({
       --terrain_noise(2),
-      --terrain_rock(0.4, 0.5) + terrain_static(64),
-      --terrain_rock(0.4, 0.5) + terrain_static(72),
+      --terrain_range(0.4, 0.5) + terrain_static(64),
+      --terrain_range(0.4, 0.5) + terrain_static(72),
       --terrain_noise(2) + terrain_static(112),
      --}))
     end
@@ -495,6 +497,7 @@ function _draw()
   for i,debug_message in pairs(debug_messages) do
     print(debug_message[1], 0, ((i-1)*8)+96, debug_message[2])
   end
+  draw_bar("cpu", stat(1), 1, 123)
  end
 end
 
@@ -641,26 +644,29 @@ function chunk_slope(height)
 end
 
 function terrain(fn)
- local g = { fn }
- setmetatable(g, {
-  __add = function(g1, g2)
-   add(g1, g2[1])
-   return g1
-  end,
-  __call = function(_, p)
-   local o = 0
-   for f in all(g) do
-    local v = f(p)
-    if v == nil then
-     return nil
-    else
-     o += f(p)
-    end
-   end
-   return o
-  end,
+ local t = {fn}
+ setmetatable(t, {
+  __add = terrain_add,
+  __call = terrain_call,
  })
- return g
+ return t
+end
+
+function terrain_add(t1, t2)
+ return terrain(
+  function(p)
+   local y1 = t1(p)
+   local y2 = t2(p)
+   if y1 == nil or y2 == nil then
+    return nil
+   end
+   return y1 + y2
+  end
+ )
+end
+
+function terrain_call(t, p)
+ return t[1](p)
 end
 
 function terrain_circletest(r, d)
@@ -730,6 +736,15 @@ function terrain_sinewave(magnitude, frequency)
  )
 end
 
+-- todo: make something more powerful than terrain_range
+-- that can switch this on and off over and over across the chunk
+function terrain_rocks(y)
+ return
+  terrain_range(0.1, 0.2)
+  + terrain_static(32 + y)
+  + terrain_circletest(32, -1)
+end
+
 function terrain_static(y)
  return terrain(
   function(p)
@@ -738,7 +753,7 @@ function terrain_static(y)
  )
 end
 
-function terrain_rock(from, to)
+function terrain_range(from, to)
  return terrain(
   function(p)
    if p > from and p < to then
@@ -772,6 +787,13 @@ end
 
 function choose(table)
  return table[flrrnd(#table) + 1]
+end
+
+function draw_bar(l, p, x, y)
+ line(x+1, y+1, x+14, y+1, 5)
+ line(x+1, y+1, x+14*p, y+1, 7)
+ rect(x, y, x+15, y+2, 1)
+ print(l, x+17, y-1, 7)
 end
 
 __gfx__
