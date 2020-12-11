@@ -67,8 +67,8 @@ function _init()
   terrain_noise(8),
    terrain_range(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, -1),
    terrain_range(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, 1),
+   terrain_rocks(48),
    terrain_rocks(64),
-   terrain_rocks(72),
   terrain_static(100) + terrain_circletest(16, 1),
  }))
 
@@ -317,12 +317,21 @@ function _update60()
     f.y += f.vy
    end
    local i = flr(f.x) - camera_x1
+   local slice = cave_slices[i]
    if i > 128 or i < 1 then
     f.stop = true
-   elseif f.y < cave_slices[i][1] then
+   elseif f.y < slice[1] then
     f.stop = true
-   elseif f.y > last(cave_slices[i]) then
+   elseif f.y > last(slice) then
     f.stop = true
+   elseif #slice > 2 then
+    for j = 2,#slice-2,2 do
+     local rock_y1 = slice[j]
+     local rock_y2 = slice[j+1]
+     if f.y > rock_y1 and f.y < rock_y2 then
+      f.stop = true
+     end
+    end
    end
   end
  end
@@ -736,13 +745,24 @@ function terrain_sinewave(magnitude, frequency)
  )
 end
 
--- todo: make something more powerful than terrain_range
--- that can switch this on and off over and over across the chunk
 function terrain_rocks(y)
  return
-  terrain_range(0.1, 0.2)
-  + terrain_static(32 + y)
-  + terrain_circletest(32, -1)
+  terrain_flicker(1)
+  + terrain_static(y)
+  + terrain_circletest(20, 1)
+end
+
+-- turn terrain on and off t times across the chunk
+function terrain_flicker(t)
+ local s = 1/t/2
+ return terrain(
+  function(p)
+   local m = flr(p/s)
+   if (m%2)==1 then
+    return 0
+   end
+  end
+ )
 end
 
 function terrain_static(y)
