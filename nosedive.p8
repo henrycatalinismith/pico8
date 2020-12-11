@@ -263,23 +263,15 @@ function _update60()
    local slice = cave_slices[i]
    local roof = slice[1]
    local floor = slice[#slice]
-   if hitbox_y2 < roof or hitbox_y2 > floor then
-    helicopter_collision()
-    goto boom
-   elseif hitbox_y1 < roof then
-    rotor_collision()
-    goto boom
-   elseif #slice > 2 then
-    for j = 2,#slice-2,2 do
-     local rock_y1 = slice[j]
-     local rock_y2 = slice[j+1]
-     if hitbox_y2 > rock_y2 and hitbox_y1 < rock_y2 then
+   for y = hitbox_y1,hitbox_y2 do
+    if not is_space(x, y) then
+     local n = nearest(slice, y)
+     if (n%2) == 1 then
       rotor_collision()
-      goto boom
-     elseif hitbox_y1 < rock_y1 and hitbox_y2 > rock_y1 then
+     else
       helicopter_collision()
-      goto boom
      end
+     goto boom
     end
    end
 
@@ -309,30 +301,38 @@ function _update60()
  end
 
  if update(update_debris) then
-  for f in all(debris) do
-   if not f.stop then
-    f.vy += 0.1
-    f.vy = mid(-4, f.vy, 4)
-    f.x += f.vx
-    f.y += f.vy
+  for d in all(debris) do
+   if d.x <= camera_x1 or d.x >= camera_x2 then
+    del(debris, d)
+    goto continue_debris
    end
-   local i = flr(f.x) - camera_x1
-   local slice = cave_slices[i]
-   if i > 128 or i < 1 then
-    f.stop = true
-   elseif f.y < slice[1] then
-    f.stop = true
-   elseif f.y > last(slice) then
-    f.stop = true
-   elseif #slice > 2 then
-    for j = 2,#slice-2,2 do
-     local rock_y1 = slice[j]
-     local rock_y2 = slice[j+1]
-     if f.y > rock_y1 and f.y < rock_y2 then
-      f.stop = true
-     end
+   if d.vx == 0 and d.vy == 0 then goto continue_debris end
+
+   d.vy += 0.1
+   d.vy = mid(-4, d.vy, 4)
+
+   if is_space(d.x + d.vx, d.y) then
+    d.x += d.vx
+   else
+    d.vx *= rnd(0.1) * -1
+    d.vy = 0
+   end
+
+   if is_space(d.x, d.y + flr(d.vy)) then
+    d.y += d.vy
+   else
+    local i = flr(d.x) - camera_x1
+    d.y = cave_slices[i][nearest(cave_slices[i], d.y)]
+    if d.vy > 1 then
+     d.vy *= rnd(0.5) * - 1
+     d.vx = rnd(0.2)
+    else
+     d.vy = 0
+     d.vx = 0
     end
    end
+
+   ::continue_debris::
   end
  end
 
@@ -510,6 +510,30 @@ function _draw()
  end
 end
 
+function nearest(t, n)
+ local v = 1
+ for i = 2,#t do
+  if abs(t[i] - n) < abs(t[v] - n) then
+   v = i
+  end
+ end
+ return v
+end
+
+function is_space(x, y)
+ local i = flr(x) - camera_x1
+ local slice = cave_slices[i]
+ if i > 128 or i < 1 then
+  return true
+ end
+ for j = 1,#slice,2 do
+  if y >= slice[j] and y <= slice[j+1] then
+   return true
+  end
+ end
+ return false
+end
+
 function rotor_collision()
   dbg("rotor collision")
   rotor_collision_frame = clock_frame
@@ -541,7 +565,7 @@ function helicopter_collision()
 
  for i = 1,128 do
   add(debris, {
-   color = choose({0,0,0,0,0,3,4,11}),
+   color = choose({3,4,11}),
    x = helicopter_x,
    y = helicopter_y,
    vx = helicopter_vx + (-1+rnd(2)),
