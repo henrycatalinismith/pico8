@@ -67,6 +67,36 @@ function _init()
  chunk_x2 = chunk_x1 + 128 * camera_vx
  chunk_queue = {}
 
+ add(chunk_queue, chunk({
+  terrain_static(0)
+  + terrain_compress(0, 0.5) % terrain_linear(-32)
+  + terrain_compress(0.5, 1) % terrain_linear(32),
+  terrain_static(100)
+  + terrain_compress(0, 0.5) % terrain_linear(-96)
+  + terrain_compress(0.5, 1) % terrain_linear(96)
+ }))
+
+ add(chunk_queue, chunk({
+  terrain_static(32)
+  + (terrain_onezero(4, 0b1000) * terrain_static(0) + terrain_noise(4) * terrain_onezero(4, 0b1000))
+  + terrain_onezero(4, 0b0100) * terrain_static(-32)
+  + terrain_onezero(4, 0b0010) * terrain_static(-16)
+  + terrain_onezero(4, 0b0001) * terrain_static(-48),
+  terrain_static(100)
+  + terrain_onezero(4, 0b1000) * terrain_static(0)
+  + terrain_onezero(4, 0b0100) * terrain_static(-32)
+  + terrain_onezero(4, 0b0010) * terrain_static(-16)
+  + terrain_onezero(4, 0b0001) * terrain_static(-48),
+ }))
+
+ add(chunk_queue, chunk({
+  terrain_noise(1),
+  terrain_static(100)
+  + terrain_onezero(3, 0b100) * terrain_noise(2)
+  + terrain_onezero(3, 0b010) * terrain_noise(5)
+  + terrain_onezero(3, 0b001) * terrain_noise(2),
+ }))
+
  -- add(chunk_queue, chunk({
   -- terrain_static(32) + terrain_circletest(32, -1),
   -- terrain_static(100) + terrain_circletest(47, -1),
@@ -719,10 +749,9 @@ end
 function chunk_slope(height)
  local h = cave_y2 - cave_y1
  local d = (h-height)/2
- dbg(height .. " h: " .. h .. ", d: " .. d)
  return chunk({
-  terrain_linear(d, 1),
-  terrain_static(h) + terrain_linear(d, -1),
+  terrain_linear(d),
+  terrain_static(h) + terrain_linear(-d),
  })
 end
 
@@ -731,6 +760,8 @@ function terrain(fn)
  setmetatable(t, {
   __add = terrain_add,
   __call = terrain_call,
+  __mod = terrain_mod,
+  __mul = terrain_mul,
  })
  return t
 end
@@ -744,6 +775,32 @@ function terrain_add(t1, t2)
     return nil
    end
    return y1 + y2
+  end
+ )
+end
+
+function terrain_mod(t1, t2)
+ return terrain(
+  function(p)
+   local y1 = t1(p)
+   local y2 = t2(y1)
+   if y1 == nil or y2 == nil then
+    return nil
+   end
+   return y2
+  end
+ )
+end
+
+function terrain_mul(t1, t2)
+ return terrain(
+  function(p)
+   local y1 = t1(p)
+   local y2 = t2(p)
+   if y1 == nil or y2 == nil then
+    return nil
+   end
+   return y1 * y2
   end
  )
 end
@@ -783,10 +840,10 @@ function terrain_pythagstep(r, d, s)
  )
 end
 
-function terrain_linear(y, d)
+function terrain_linear(y)
  return terrain(
   function(p)
-   return p * y * d
+   return p * y
   end
  )
 end
@@ -824,6 +881,33 @@ function terrain_rocks(y)
   terrain_flicker(7, 0b0101010)
   + terrain_static(y)
   + terrain_circletest(20, 1)
+end
+
+function terrain_compress(from, to)
+ local range = to - from
+ return terrain(
+  function(p)
+   if p <= from then
+    return 0
+   elseif p >= to then
+    return 1
+   else
+    return (p-from)/range
+   end
+  end
+ )
+end
+
+function terrain_onezero(t, b)
+ return terrain(
+  function(p)
+   if b & 2^(t-ceil(p*t)) > 0 then
+    return 1
+   else
+    return 0
+   end
+  end
+ )
 end
 
 function terrain_flicker(t, b)
