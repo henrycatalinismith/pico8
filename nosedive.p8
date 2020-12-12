@@ -67,95 +67,100 @@ function _init()
  chunk_x2 = chunk_x1 + 128 * camera_vx
  chunk_queue = {}
 
- add(chunk_queue, chunk({
-  terrain_static(32)
-  + terrain_compress(0, 0.33) % terrain_pythagstep(32, -1, 1)
-  + terrain_compress(0.33, 1) % terrain_pythagstep(64, -1, -1),
-  terrain_static(96)
-  + terrain_compress(0, 0.66) % terrain_pythagstep(64, -1, 1)
-  + terrain_compress(0.66, 1) % terrain_pythagstep(32, -1, -1)
- }))
+ --sbend(8, 16, -1)
+ --sbend(16, 8, -1)
 
- add(chunk_queue, chunk({
-  terrain_static(0)
-  + terrain_compress(0, 0.33) % terrain_pythagstep(32, 1, 1)
-  + terrain_compress(0.33, 1) % terrain_pythagstep(64, 1, -1),
-  terrain_static(64)
-  + terrain_compress(0, 0.33) % terrain_pythagstep(64, 1, 1)
-  + terrain_compress(0.33, 1) % terrain_pythagstep(32, 1, -1)
- }))
+-- 
+--  add(chunk_queue, chunk({
+--   static(0)
+--   + range(0, 0.5) % terrain_linear(-32)
+--   + range(0.5, 1) % terrain_linear(32),
+--   static(100)
+--   + range(0, 0.5) % terrain_linear(-96)
+--   + range(0.5, 1) % terrain_linear(96)
+--  }))
+-- 
 
- add(chunk_queue, chunk({
-  terrain_static(0)
-  + terrain_compress(0, 0.5) % terrain_linear(-32)
-  + terrain_compress(0.5, 1) % terrain_linear(32),
-  terrain_static(100)
-  + terrain_compress(0, 0.5) % terrain_linear(-96)
-  + terrain_compress(0.5, 1) % terrain_linear(96)
- }))
-
- add(chunk_queue, chunk({
-  terrain_static(32)
-  + (terrain_onezero(4, 0b1000) * terrain_static(0) + terrain_noise(4) * terrain_onezero(4, 0b1000))
-  + terrain_onezero(4, 0b0100) * terrain_static(-32)
-  + terrain_onezero(4, 0b0010) * terrain_static(-16)
-  + terrain_onezero(4, 0b0001) * terrain_static(-48),
-  terrain_static(100)
-  + terrain_onezero(4, 0b1000) * terrain_static(0)
-  + terrain_onezero(4, 0b0100) * terrain_static(-32)
-  + terrain_onezero(4, 0b0010) * terrain_static(-16)
-  + terrain_onezero(4, 0b0001) * terrain_static(-48),
- }))
-
- add(chunk_queue, chunk({
-  terrain_noise(1),
-  terrain_static(100)
-  + terrain_onezero(3, 0b100) * terrain_noise(2)
-  + terrain_onezero(3, 0b010) * terrain_noise(5)
-  + terrain_onezero(3, 0b001) * terrain_noise(2),
- }))
+--  add(chunk_queue, chunk({
+--   static(32)
+--   + (terrain_onezero(4, 0b1000) * static(0) + noise(4) * terrain_onezero(4, 0b1000))
+--   + terrain_onezero(4, 0b0100) * static(-32)
+--   + terrain_onezero(4, 0b0010) * static(-16)
+--   + terrain_onezero(4, 0b0001) * static(-48),
+--   static(100)
+--   + terrain_onezero(4, 0b1000) * static(0)
+--   + terrain_onezero(4, 0b0100) * static(-32)
+--   + terrain_onezero(4, 0b0010) * static(-16)
+--   + terrain_onezero(4, 0b0001) * static(-48),
+--  }))
 
  -- add(chunk_queue, chunk({
-  -- terrain_static(32) + terrain_circletest(32, -1),
-  -- terrain_static(100) + terrain_circletest(47, -1),
+  -- static(32) + terrain_circletest(32, -1),
+  -- static(100) + terrain_circletest(47, -1),
  -- }))
 
  add(chunk_queue, chunk({
-  terrain_noise(1),
-   terrain_range(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, -1),
-   terrain_range(0.4, 0.5) + terrain_static(32) + terrain_circletest(8, 1),
-   terrain_rocks(48),
-   terrain_rocks(64),
-  terrain_static(100) + terrain_circletest(16, 1),
+  noise(1),
+  rock(0.5, 64, 8, -1),
+  rock(0.5, 64, 8, 1),
+  static(100) + noise(1),
  }))
 
  add(chunk_queue, chunk({
-  terrain_noise(3),
-  terrain_noise(3) + terrain_static(112),
+  static(0) + sbend(16, 32, -1),
+  static(64) + sbend(32, 1, -1),
+ }))
+
+ add(chunk_queue, chunk({
+  static(0) + sbend(32, 16, 1),
+  static(64) + sbend(16, 32, 1),
+ }))
+
+ add(chunk_queue, chunk({
+  noise(1),
+   terrain_range(0.4, 0.5) + static(32) + terrain_circletest(8, -1),
+   terrain_range(0.4, 0.5) + static(32) + terrain_circletest(8, 1),
+   terrain_rocks(48),
+   terrain_rocks(64),
+  static(100) + terrain_circletest(16, 1),
+ }))
+
+ add(chunk_queue, chunk({
+  noise(1),
+  static(100)
+  + terrain_onezero(3, 0b100) * noise(2)
+  + terrain_onezero(3, 0b010) * noise(5)
+  + terrain_onezero(3, 0b001) * noise(2),
+ }))
+
+ add(chunk_queue, chunk({
+  noise(3),
+  noise(3) + static(112),
  }))
 
  if false then
   add(chunk_queue, chunk({
-   terrain_noise(1),
-   terrain_range(0.4, 0.5) + terrain_static(64),
-   terrain_range(0.4, 0.5) + terrain_static(72),
-   terrain_noise(1) + terrain_static(112),
+   noise(1),
+   terrain_range(0.4, 0.5) + static(64),
+   terrain_range(0.4, 0.5) + static(72),
+   noise(1) + static(112),
   }))
 
   add(chunk_queue, chunk({
-   terrain_noise(1)
+   noise(1)
    + terrain_descend(128)
    + terrain_sinewave(8, 2),
-   terrain_range(0.4, 0.5) + terrain_static(64) + terrain_descend(128),
-   terrain_range(0.4, 0.5) + terrain_static(72) + terrain_descend(128),
-   terrain_noise(1)
+   terrain_range(0.4, 0.5) + static(64) + terrain_descend(128),
+   terrain_range(0.4, 0.5) + static(72) + terrain_descend(128),
+   noise(1)
    + terrain_descend(128)
    + terrain_sinewave(8, 2)
-   + terrain_static(112),
+   + static(112),
   }))
  end
 
  coins = {}
+ coins_count = 0
 
  debug_messages = {}
  debug_color = 8
@@ -259,10 +264,10 @@ function _update60()
      add(chunk_queue, chunk_slope(flrrnd(112)+16))
      
      --add(chunk_queue, chunk({
-      --terrain_noise(2),
-      --terrain_range(0.4, 0.5) + terrain_static(64),
-      --terrain_range(0.4, 0.5) + terrain_static(72),
-      --terrain_noise(2) + terrain_static(112),
+      --noise(2),
+      --terrain_range(0.4, 0.5) + static(64),
+      --terrain_range(0.4, 0.5) + static(72),
+      --noise(2) + static(112),
      --}))
     end
 
@@ -340,6 +345,7 @@ function _update60()
      and not (coin.y2 < hitbox_y1 or coin.y1 > hitbox_y2)
      then
      coin.hit = clock_frame
+     coins_count += 1
 
      for i = 1,8 do
       add(debris, {
@@ -349,6 +355,11 @@ function _update60()
        vx = helicopter_vx + 1 - rnd(2),
        vy = helicopter_vy - rnd(4),
       })
+     end
+
+     if coins_count % 4 == 0 and helicopter_vx < 4 then
+      --camera_vx += 1
+      --helicopter_vx += 1
      end
 
      goto boom
@@ -402,14 +413,14 @@ function _update60()
     del(coins, coin)
    end
   end
-  while #coins < 2 do
-   local x1 = camera_x2 + 8
+  while #coins < 8 do
+   local x1 = cave_x1 + 8
    local y1 = (cave_slices[128][1] + (
-    cave_slices[128][2] - 
+    cave_slices[128][2] -
     cave_slices[128][1]
    ) / 2) - 5
    if coins[#coins] then
-    x1 = coins[#coins].x1 + 64
+    x1 = coins[#coins].x1 + 16
    end
    local x2 = x1+9
    local y2 = y1+9
@@ -465,7 +476,7 @@ function _draw()
   for coin in all(coins) do
    local x = coin.x1+1
    local y = coin.y1
-   y += loop(clock_frame, 48, 2)
+   y += loop(clock_frame + coin.x1, 48, 2)
    if coin.hit then
     spr(88 + clock_frame - coin.hit, x, y)
    else
@@ -595,7 +606,7 @@ function _draw()
 
  if draw(draw_smoke) then
   for i, puff in pairs(smoke) do
-   circ(puff.x, puff.y, puff.radius, 7)
+   circ(puff.x, puff.y, r, 5)
   end
  end
 
@@ -769,7 +780,7 @@ function chunk_slope(height)
  local d = (h-height)/2
  return chunk({
   terrain_linear(d),
-  terrain_static(h) + terrain_linear(-d),
+  static(h) + terrain_linear(-d),
  })
 end
 
@@ -800,8 +811,8 @@ end
 function terrain_mod(t1, t2)
  return terrain(
   function(p)
-   local y1 = t1(p)
-   local y2 = t2(y1)
+   local y1 = t2(p)
+   local y2 = t1(y1)
    if y1 == nil or y2 == nil then
     return nil
    end
@@ -836,24 +847,56 @@ function terrain_circletest(r, d)
  )
 end
 
-function terrain_pythagstep(r, d, s)
+function invert()
  return terrain(
   function(p)
-   if s == -1 then
-    p = 1 - p
-   end
+   return -1
+  end
+ )
+end
+
+function reverse()
+ return terrain(
+  function(p)
+   return 1-p
+  end
+ )
+end
+
+--todo: rock is all broken but looking promising
+-- gotta figure out the magic combination here to make
+-- all four corners behave just right
+function rock(x, y, r, d)
+ --local l = range(x - 1/r, x + 1/r)
+ --local p = pythagoras(r) * invert() % l
+ --return p + static(y + r*d) % filter() % l
+ -- return static(y) + (
+  -- pythagoras(r) % range(x-1/r, x)
+ -- ) * static(d) % range(x-1/r, x+1/r)
+
+ local front = static(y) + pythagoras(r) % reverse() % range(x-0.1, x)
+ if d == 1 then
+ end
+ local back = pythagoras(r) % range(x, x+0.1)
+ return front + back * static(d)
+
+
+end
+
+function sbend(r1, r2, d)
+ local p1 = r1 / (r1 + r2)
+ return (
+  static(r2) + pythagoras(r1) % range(0, p1)
+  + pythagoras(r2) * invert() % reverse() % range(p1, 1)
+ ) * static(d)
+end
+
+function pythagoras(r)
+ return terrain(
+  function(p)
    local a = flr(r*p)
-   local c = r
-   local py = sqrt(c^2 - a^2)
-   local y = r - py
-   if s == -1 and d == 1 then
-    y = py + 0
-   elseif s == -1 and d == -1 then
-    y = r - r - r + y
-   elseif d == -1 then
-    y = py - r
-   end
-   return y
+   local y = sqrt(r^2 - a^2)
+   return r-y
   end
  )
 end
@@ -897,11 +940,21 @@ end
 function terrain_rocks(y)
  return
   terrain_flicker(7, 0b0101010)
-  + terrain_static(y)
+  + static(y)
   + terrain_circletest(20, 1)
 end
 
-function terrain_compress(from, to)
+function filter()
+ return terrain(
+  function(p)
+   if p != 0 and p != 1 then
+    return p
+   end
+  end
+ )
+end
+
+function range(from, to)
  local range = to - from
  return terrain(
   function(p)
@@ -938,7 +991,7 @@ function terrain_flicker(t, b)
  )
 end
 
-function terrain_static(y)
+function static(y)
  return terrain(
   function(p)
    return y
@@ -956,7 +1009,7 @@ function terrain_range(from, to)
  )
 end
 
-function terrain_noise(n)
+function noise(n)
  return terrain(
   function(p)
    if p == 1 then
