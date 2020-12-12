@@ -68,6 +68,15 @@ function _init()
  chunk_queue = {}
 
  add(chunk_queue, chunk({
+  terrain_static(32)
+  + terrain_compress(0, 0.33) % terrain_pythagstep(32, -1, 1)
+  + terrain_compress(0.33, 1) % terrain_pythagstep(64, -1, -1),
+  terrain_static(96)
+  + terrain_compress(0, 0.66) % terrain_pythagstep(64, -1, 1)
+  + terrain_compress(0.66, 1) % terrain_pythagstep(32, -1, -1)
+ }))
+
+ add(chunk_queue, chunk({
   terrain_static(0)
   + terrain_compress(0, 0.5) % terrain_linear(-32)
   + terrain_compress(0.5, 1) % terrain_linear(32),
