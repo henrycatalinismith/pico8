@@ -73,11 +73,11 @@ function _init()
 -- 
 --  add(chunk_queue, chunk({
 --   static(0)
---   + range(0, 0.5) % terrain_linear(-32)
---   + range(0.5, 1) % terrain_linear(32),
+--   + range(0, 0.5) % linear(-32)
+--   + range(0.5, 1) % linear(32),
 --   static(100)
---   + range(0, 0.5) % terrain_linear(-96)
---   + range(0.5, 1) % terrain_linear(96)
+--   + range(0, 0.5) % linear(-96)
+--   + range(0.5, 1) % linear(96)
 --  }))
 -- 
 
@@ -101,8 +101,12 @@ function _init()
 
  add(chunk_queue, chunk({
   noise(1),
-  rock(0.5, 64, 8, -1),
-  rock(0.5, 64, 8, 1),
+  rock(0.8, 64, 8, -1),
+  rock(0.8, 64, 8, 1),
+  rock(0.2, 32, 12, -1),
+  rock(0.2, 32, 12, 1),
+  rock(0.4, 64, 6, -1),
+  rock(0.4, 64, 6, 1),
   static(100) + noise(1),
  }))
 
@@ -149,12 +153,12 @@ function _init()
   add(chunk_queue, chunk({
    noise(1)
    + terrain_descend(128)
-   + terrain_sinewave(8, 2),
+   + sinewave(8, 2),
    terrain_range(0.4, 0.5) + static(64) + terrain_descend(128),
    terrain_range(0.4, 0.5) + static(72) + terrain_descend(128),
    noise(1)
    + terrain_descend(128)
-   + terrain_sinewave(8, 2)
+   + sinewave(8, 2)
    + static(112),
   }))
  end
@@ -779,8 +783,8 @@ function chunk_slope(height)
  local h = cave_y2 - cave_y1
  local d = (h-height)/2
  return chunk({
-  terrain_linear(d),
-  static(h) + terrain_linear(-d),
+  linear(d),
+  static(h) + linear(-d),
  })
 end
 
@@ -806,6 +810,14 @@ function terrain_add(t1, t2)
    return y1 + y2
   end
  )
+end
+
+function terrain_call(t, p)
+ if p == nil then
+  return nil
+ else
+  return t[1](p)
+ end
 end
 
 function terrain_mod(t1, t2)
@@ -834,10 +846,6 @@ function terrain_mul(t1, t2)
  )
 end
 
-function terrain_call(t, p)
- return t[1](p)
-end
-
 function terrain_circletest(r, d)
  return terrain(
   function(p)
@@ -863,24 +871,15 @@ function reverse()
  )
 end
 
---todo: rock is all broken but looking promising
--- gotta figure out the magic combination here to make
--- all four corners behave just right
 function rock(x, y, r, d)
- --local l = range(x - 1/r, x + 1/r)
- --local p = pythagoras(r) * invert() % l
- --return p + static(y + r*d) % filter() % l
- -- return static(y) + (
-  -- pythagoras(r) % range(x-1/r, x)
- -- ) * static(d) % range(x-1/r, x+1/r)
-
- local front = static(y) + pythagoras(r) % reverse() % range(x-0.1, x)
- if d == 1 then
- end
- local back = pythagoras(r) % range(x, x+0.1)
- return front + back * static(d)
-
-
+ --local front = static(r) + pythagoras(r) * invert() % reverse() % range(0, 0.5)
+ --local back = pythagoras(r) * invert() % range(0.5, 1)
+ --return static(y) + front + back % trim() % range(0.2,0.7)
+ return (
+  static(y)
+  + (linear(r*d)) % range(0, 0.5)
+  + (linear(r*-d)) % range(0.5, 1)
+ ) % trim() % range(x-(r*0.01), x+(r*0.01))
 end
 
 function sbend(r1, r2, d)
@@ -901,7 +900,7 @@ function pythagoras(r)
  )
 end
 
-function terrain_linear(y)
+function linear(y)
  return terrain(
   function(p)
    return p * y
@@ -929,10 +928,20 @@ function terrain_fudge(n)
  )
 end
 
-function terrain_sinewave(magnitude, frequency)
+function sinewave(magnitude, frequency)
  return terrain(
   function(p)
    return sin(p * frequency) * magnitude
+  end
+ )
+end
+
+function trim()
+ return terrain(
+  function(p)
+   if p > 0 and p < 1 then
+    return p
+   end
   end
  )
 end

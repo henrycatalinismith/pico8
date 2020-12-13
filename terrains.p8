@@ -27,7 +27,11 @@ function terrain_add(t1, t2)
 end
 
 function terrain_call(t, p)
- return t[1](p)
+ if p == nil then
+  return nil
+ else
+  return t[1](p)
+ end
 end
 
 function terrain_mod(t1, t2)
@@ -93,7 +97,6 @@ function pythagoras(r)
 end
 
 function range(from, to)
- local range = to - from
  return terrain(
   function(p)
    if p <= from then
@@ -101,7 +104,7 @@ function range(from, to)
    elseif p >= to then
     return 1
    else
-    return (p-from)/range
+    return (p-from)/(to-from)
    end
   end
  )
@@ -116,9 +119,14 @@ function reverse()
 end
 
 function rock(x, y, r, d)
- local front = static(y) + pythagoras(r) % reverse() % range(x-0.1, x)
- local back = pythagoras(r) % range(x, x+0.1)
- return front + back * static(d)
+ --local front = static(r) + pythagoras(r) * invert() % reverse() % range(0, 0.5)
+ --local back = pythagoras(r) * invert() % range(0.5, 1)
+ --return static(y) + front + back % trim() % range(0.2,0.7)
+ return (
+  static(y)
+  + (linear(r*d) + sinewave(2, 1) + noise(1)) % range(0, 0.5)
+  + (linear(r*-d) + sinewave(2, 1) + noise(1)) % range(0.5, 1)
+ ) % trim() % range(x-(r*0.01), x+(r*0.01))
 end
 
 function sbend(r1, r2, d)
@@ -141,6 +149,16 @@ function static(y)
  return terrain(
   function(p)
    return y
+  end
+ )
+end
+
+function trim()
+ return terrain(
+  function(p)
+   if p > 0 and p < 1 then
+    return p
+   end
   end
  )
 end
@@ -199,6 +217,11 @@ function _init()
    fn = rock(0.5, 64, 8, 1),
  })
 
+ add(terrains, {
+   name = "rock(0.5, 64, 8, -1)",
+   fn = rock(0.5, 64, 8, -1),
+ })
+
  points = {}
 
  index = #terrains
@@ -212,15 +235,16 @@ function _update()
  for x = 1,128 do
   local p = x/128
   if x == 1 then p = 0 elseif x == 128 then p = 1 end
-  points[x] = terrains[index].fn(p)
-  if points[x] == nil then
+  local y = terrains[index].fn(p) 
+  points[x] = {y}
+  if y == nil then
    goto continue
   end
-  if points[x] > maxp then
-   maxp = ceil(points[x])
+  if y > maxp then
+   maxp = ceil(y)
   end
-  if points[x] < minp then
-   minp = flr(points[x])
+  if y < minp then
+   minp = flr(y)
   end
   ::continue::
  end
@@ -249,13 +273,13 @@ function _draw()
  line(graph_x1, graph_y1, graph_x1, graph_y2, 12)
  line(graph_x1, graph_y1+(maxp+1)*ys, graph_x2, graph_y1+(maxp+1)*ys, 12)
 
- for x,y in pairs(points) do
+ local px1,px2
+ for x = 1,128 do
+  local y = points[x][1]
   local px = graph_x1 + 1 + (x*xs)
-  local py = graph_y1 + (maxp-y)*ys
-  if points[x-1] == nil then
-   line(px, py, px, py, 8)
-  else
-   line(px, py, 8)
+  if y ~= nil then
+   local py = graph_y1 + (maxp-y)*ys
+   pset(px, py, 8)
   end
  end
 
