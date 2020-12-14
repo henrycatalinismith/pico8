@@ -67,101 +67,14 @@ function _init()
  chunk_x2 = chunk_x1 + 128 * camera_vx
  chunk_queue = {}
 
- --sbend(8, 16, -1)
- --sbend(16, 8, -1)
+ add(chunk_queue, room(1))
+ add(chunk_queue, corridor(1, 48))
 
--- 
---  add(chunk_queue, chunk({
---   static(0)
---   + range(0, 0.5) % linear(-32)
---   + range(0.5, 1) % linear(32),
---   static(100)
---   + range(0, 0.5) % linear(-96)
---   + range(0.5, 1) % linear(96)
---  }))
--- 
-
---  add(chunk_queue, chunk({
---   static(32)
---   + (terrain_onezero(4, 0b1000) * static(0) + noise(4) * terrain_onezero(4, 0b1000))
---   + terrain_onezero(4, 0b0100) * static(-32)
---   + terrain_onezero(4, 0b0010) * static(-16)
---   + terrain_onezero(4, 0b0001) * static(-48),
---   static(100)
---   + terrain_onezero(4, 0b1000) * static(0)
---   + terrain_onezero(4, 0b0100) * static(-32)
---   + terrain_onezero(4, 0b0010) * static(-16)
---   + terrain_onezero(4, 0b0001) * static(-48),
---  }))
-
- -- add(chunk_queue, chunk({
-  -- static(32) + terrain_circletest(32, -1),
-  -- static(100) + terrain_circletest(47, -1),
- -- }))
-
- add(chunk_queue, chunk({
-  noise(1),
-  rock(0.8, 64, 8, -1),
-  rock(0.8, 64, 8, 1),
-  rock(0.2, 32, 12, -1),
-  rock(0.2, 32, 12, 1),
-  rock(0.4, 64, 6, -1),
-  rock(0.4, 64, 6, 1),
-  static(100) + noise(1),
- }))
-
- add(chunk_queue, chunk({
-  static(0) + sbend(16, 32, -1),
-  static(64) + sbend(32, 1, -1),
- }))
-
- add(chunk_queue, chunk({
-  static(0) + sbend(32, 16, 1),
-  static(64) + sbend(16, 32, 1),
- }))
-
- add(chunk_queue, chunk({
-  noise(1),
-   terrain_range(0.4, 0.5) + static(32) + terrain_circletest(8, -1),
-   terrain_range(0.4, 0.5) + static(32) + terrain_circletest(8, 1),
-   terrain_rocks(48),
-   terrain_rocks(64),
-  static(100) + terrain_circletest(16, 1),
- }))
-
- add(chunk_queue, chunk({
-  noise(1),
-  static(100)
-  + terrain_onezero(3, 0b100) * noise(2)
-  + terrain_onezero(3, 0b010) * noise(5)
-  + terrain_onezero(3, 0b001) * noise(2),
- }))
-
- add(chunk_queue, chunk({
-  noise(3),
-  noise(3) + static(112),
- }))
-
- if false then
-  add(chunk_queue, chunk({
-   noise(1),
-   terrain_range(0.4, 0.5) + static(64),
-   terrain_range(0.4, 0.5) + static(72),
-   noise(1) + static(112),
-  }))
-
-  add(chunk_queue, chunk({
-   noise(1)
-   + terrain_descend(128)
-   + sinewave(8, 2),
-   terrain_range(0.4, 0.5) + static(64) + terrain_descend(128),
-   terrain_range(0.4, 0.5) + static(72) + terrain_descend(128),
-   noise(1)
-   + terrain_descend(128)
-   + sinewave(8, 2)
-   + static(112),
-  }))
- end
+ add(chunk_queue, tunnel(0, 48) + sbend(16, 128))
+ add(chunk_queue, tunnel(0, 48) + nbend(16, 48) + resize(32, 64))
+ add(chunk_queue, tunnel(0, 64) + zbend(16, 128))
+ add(chunk_queue, tunnel(0, 64) + sbend(16, 128))
+ add(chunk_queue, tunnel(0, 64) + zbend(16, 128))
 
  coins = {}
  coins_count = 0
@@ -206,6 +119,13 @@ end
 
 function _update60()
  clock_frame += 1
+
+ if btn(4) then
+  camera_vx = ceil(clock_frame/65)
+ else
+  camera_vx = 1
+ end
+ helicopter_vx = camera_vx
 
  if update(update_camera) then
   if rotor_collision_frame and helicopter_y-64>camera_y1 then
@@ -265,27 +185,17 @@ function _update60()
     del(chunk_queue, chunk_queue[1])
 
     if #chunk_queue < 1 then
-     add(chunk_queue, chunk_slope(flrrnd(112)+16))
-     
-     --add(chunk_queue, chunk({
-      --noise(2),
-      --terrain_range(0.4, 0.5) + static(64),
-      --terrain_range(0.4, 0.5) + static(72),
-      --noise(2) + static(112),
-     --}))
+     add(chunk_queue, tunnel(cave_y1, cave_y2-cave_y1))
+    else
+     --chunk_queue[1] += tunnel(cave_y1, cave_y2-cave_y1)
     end
-
-
    end
 
    next_slice = chunk_queue[1](chunk_p)
 
    cave_slices[128] = {}
    for p in all(next_slice) do
-    add(
-     cave_slices[128],
-     cave_y1 + p
-    )
+    add(cave_slices[128], cave_y1 + p)
    end
   end
  end
@@ -764,28 +674,113 @@ function last(t)
  return t[#t]
 end
 
-function chunk(terrains)
- return function(p)
-  local values = {}
-  local slice = {}
-  for t in all(terrains) do
-   local v = t(p)
-   if v ~= nil then
-    add(values, t(p))
-   end
+function chunk(y1, y2)
+ local c = {y1,y2}
+ setmetatable(c, {
+  __add = chunk_add,
+  __and = chunk_and,
+  __call = chunk_call,
+ })
+ return c
+end
+
+function chunk_add(c1, c2)
+ return chunk(
+  c1[1] + c2[1],
+  c1[2] + c2[2]
+ )
+end
+
+function chunk_and(c1, c2)
+ for y in all(c2) do
+  add(c1, y)
+ end
+ return c1
+end
+
+function chunk_call(c, p)
+ local v = {}
+ for t in all(c) do
+  local y = t(p)
+  if y ~= nil then
+   add(v, y)
   end
-  sort(values)
-  return values
+ end
+ sort(v)
+ return v
+end
+
+function sort(a)
+ for i=1,#a do
+  local j = i
+  while j > 1 and a[j-1] > a[j] do
+   a[j],a[j-1] = a[j-1],a[j]
+   j = j - 1
+  end
  end
 end
 
-function chunk_slope(height)
- local h = cave_y2 - cave_y1
- local d = (h-height)/2
- return chunk({
-  linear(d),
-  static(h) + linear(-d),
- })
+function tunnel(d, h)
+ return chunk(
+  static(d),
+  static(d + h)
+ )
+end
+
+function room(d)
+ return chunk(
+  static(d),
+  static(d + 112)
+ )
+end
+
+function corridor(d, h)
+ return chunk(
+  static(d),
+  static(d + h)
+ )
+end
+
+function resize(y1, y2)
+ return chunk(
+  linear(y1),
+  linear(y2)
+ )
+end
+
+function rock(x, y, r)
+ return chunk(
+  fragment(x, y, r, -1),
+  fragment(x, y, r, 1)
+ )
+end
+
+function nbend(r1, r2)
+ return chunk(
+  nshape(r2, r1),
+  nshape(r1, r2)
+ )
+end
+
+function sbend(r1, r2)
+ return chunk(
+  sshape(r1, r2),
+  sshape(r2, r1)
+ )
+end
+
+function ubend(r1, r2)
+ return chunk(
+  ushape(r2, r1),
+  ushape(r1, r2)
+ )
+end
+
+function zbend(r1, r2)
+ return chunk(
+  zshape(r2, r1),
+  zshape(r1, r2)
+ )
 end
 
 function terrain(fn)
@@ -846,56 +841,10 @@ function terrain_mul(t1, t2)
  )
 end
 
-function terrain_circletest(r, d)
- return terrain(
-  function(p)
-   local y = sqrt(r^2 - ((-1+(p*2))*r)^2)
-   return y*d - r
-  end
- )
-end
-
 function invert()
  return terrain(
   function(p)
    return -1
-  end
- )
-end
-
-function reverse()
- return terrain(
-  function(p)
-   return 1-p
-  end
- )
-end
-
-function rock(x, y, r, d)
- --local front = static(r) + pythagoras(r) * invert() % reverse() % range(0, 0.5)
- --local back = pythagoras(r) * invert() % range(0.5, 1)
- --return static(y) + front + back % trim() % range(0.2,0.7)
- return (
-  static(y)
-  + (linear(r*d)) % range(0, 0.5)
-  + (linear(r*-d)) % range(0.5, 1)
- ) % trim() % range(x-(r*0.01), x+(r*0.01))
-end
-
-function sbend(r1, r2, d)
- local p1 = r1 / (r1 + r2)
- return (
-  static(r2) + pythagoras(r1) % range(0, p1)
-  + pythagoras(r2) * invert() % reverse() % range(p1, 1)
- ) * static(d)
-end
-
-function pythagoras(r)
- return terrain(
-  function(p)
-   local a = flr(r*p)
-   local y = sqrt(r^2 - a^2)
-   return r-y
   end
  )
 end
@@ -908,63 +857,27 @@ function linear(y)
  )
 end
 
-function terrain_descend(depth)
- return terrain(
-  function(p)
-   return p * depth
-  end
- )
-end
-
-function terrain_fudge(n)
+function noise(n)
  return terrain(
   function(p)
    if p == 1 then
     return 0
    else
-    return n
+    return flr(rnd(2^n)) - 2^n/2
    end
   end
  )
 end
 
-function sinewave(magnitude, frequency)
+function pythagoras(r)
  return terrain(
   function(p)
-   return sin(p * frequency) * magnitude
-  end
- )
-end
-
-function trim()
- return terrain(
-  function(p)
-   if p > 0 and p < 1 then
-    return p
-   end
-  end
- )
-end
-
-function terrain_rocks(y)
- return
-  terrain_flicker(7, 0b0101010)
-  + static(y)
-  + terrain_circletest(20, 1)
-end
-
-function filter()
- return terrain(
-  function(p)
-   if p != 0 and p != 1 then
-    return p
-   end
+   return r - sqrt(r^2 - flr(r*p)^2)
   end
  )
 end
 
 function range(from, to)
- local range = to - from
  return terrain(
   function(p)
    if p <= from then
@@ -972,30 +885,58 @@ function range(from, to)
    elseif p >= to then
     return 1
    else
-    return (p-from)/range
+    return (p-from)/(to-from)
    end
   end
  )
 end
 
-function terrain_onezero(t, b)
+function reverse()
  return terrain(
   function(p)
-   if b & 2^(t-ceil(p*t)) > 0 then
-    return 1
-   else
-    return 0
-   end
+   return 1 - p
   end
  )
 end
 
-function terrain_flicker(t, b)
+function fragment(x, y, r, d)
+ return (
+  static(y)
+  + (linear(r*d) + sinewave(2, 1) + noise(1)) % range(0, 0.5)
+  + (linear(r*-d) + sinewave(2, 1) + noise(1)) % range(0.5, 1)
+ ) % trim() % range(x-(r*0.01), x+(r*0.01))
+end
+
+function nshape(r1, r2)
+ return (
+  sshape(r2, r1) % range(0, 0.5)
+  + zshape(r1, r2) % range(0.5, 1)
+ )
+end
+
+function sshape(r1, r2)
+ return zshape(r1, r2) * static(-1)
+end
+
+function ushape(r1, r2)
+ return (
+  zshape(r1, r2) % range(0, 0.5)
+  + sshape(r2, r1) % range(0.5, 1)
+ )
+end
+
+function zshape(r1, r2)
+ local p1 = r1 / (r1 + r2)
+ return (
+  static(r2) + pythagoras(r1) % range(0, p1)
+  + pythagoras(r2) * invert() % reverse() % range(p1, 1)
+ )
+end
+
+function sinewave(magnitude, frequency)
  return terrain(
   function(p)
-   if b & 2^(t-ceil(p*t)) > 0 then
-    return 0
-   end
+   return sin(p * frequency) * magnitude
   end
  )
 end
@@ -1008,23 +949,11 @@ function static(y)
  )
 end
 
-function terrain_range(from, to)
+function trim()
  return terrain(
   function(p)
-   if p > from and p < to then
-    return 0
-   end
-  end
- )
-end
-
-function noise(n)
- return terrain(
-  function(p)
-   if p == 1 then
-    return 0
-   else
-    return flrrnd(2^n) - 2^n/2
+   if p > 0 and p < 1 then
+    return p
    end
   end
  )

@@ -55,6 +55,13 @@ function tunnel(d, h)
  )
 end
 
+function room(d)
+ return chunk(
+  static(d),
+  static(d + 120)
+ )
+end
+
 function resize(y1, y2)
  return chunk(
   linear(y1),
@@ -320,6 +327,16 @@ function _init()
  add(chunks, {
    name = "tunnel(2, 32) + nbend(16, 32)",
    fn = tunnel(2, 32) + nbend(16, 32),
+ })
+
+ add(chunks, {
+   name = "tunnel(2, 32) + nbend(16, 32) + resize(32, 32)",
+   fn = tunnel(2, 32) + nbend(16, 32) + resize(32, 32),
+ })
+
+ add(chunks, {
+   name = "room(1)",
+   fn = room(1),
  })
 
  cave = {}
