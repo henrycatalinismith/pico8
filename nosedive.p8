@@ -49,7 +49,7 @@ function _init()
  camera_y1 = 0
  camera_x2 = camera_x1 + 128
  camera_y2 = camera_y1 + 128
- camera_vx = 1
+ camera_vx = 2
  camera_vy = 0
  camera_ideal_y1 = camera_y1
  camera_error_y1 = 0
@@ -62,25 +62,18 @@ function _init()
  cave_y1 = cave_slices[127][1]
  cave_y2 = last(cave_slices[127])
 
- chunk_p = 0
- chunk_x1 = cave_x1
- chunk_x2 = chunk_x1 + 128 * camera_vx
- chunk_queue = {}
-
- add(chunk_queue, room(1))
- add(chunk_queue, corridor(1, 48))
-
- add(chunk_queue, tunnel(0, 48) + sbend(16, 128))
- add(chunk_queue, tunnel(0, 48) + nbend(16, 48) + resize(32, 64))
- add(chunk_queue, tunnel(0, 64) + zbend(16, 128))
- add(chunk_queue, tunnel(0, 64) + sbend(16, 128))
- add(chunk_queue, tunnel(0, 64) + zbend(16, 128))
-
  coins = {}
  coins_count = 0
 
  debug_messages = {}
  debug_color = 8
+
+ b = biome(32, {
+   tunnel(0, 64) + nbend(16+rng(2), 32+rng(2)) + resize1(32-rng(64)),
+   tunnel(0, 64) + ubend(16+rng(2), 32+rng(2)) + resize1(32-rng(64)),
+   tunnel(0, 64) + sbend(16+rng(2), 32+rng(2)) + resize1(32-rng(64)),
+   tunnel(0, 64) + zbend(16+rng(2), 32+rng(2)) + resize1(32-rng(64)),
+ })
 
  helicopter_x = 48
  helicopter_y = 80
@@ -120,12 +113,6 @@ end
 function _update60()
  clock_frame += 1
 
- if btn(4) then
-  camera_vx = ceil(clock_frame/65)
- else
-  camera_vx = 1
- end
- helicopter_vx = camera_vx
 
  if update(update_camera) then
   if rotor_collision_frame and helicopter_y-64>camera_y1 then
@@ -168,34 +155,24 @@ function _update60()
 
    cave_x1 += 1
    cave_x2 = cave_x1 + 128
+   next_slice = b()
 
-   if cave_x1 < chunk_x2 then
-    chunk_p = (cave_x1 - chunk_x1) / (chunk_x2 - chunk_x1)
-   elseif cave_x1 == chunk_x2 then
-    chunk_p = 1
-   else
-    dbg("nxtchunk " .. cave_y2 - cave_y1)
+   if next_slice == nil or #next_slice == 0 then
+    dbg("next plz")
 
-    chunk_p = 0
-    chunk_x1 = cave_x1
-    chunk_x2 = chunk_x1 + 128 * camera_vx
-    cave_y1 = cave_slices[127][1]
-    cave_y2 = last(cave_slices[127])
+    b = biome(8, {
+      tunnel(0, 64) + nbend(16, 32) + resize1(32-rng(64)),
+      tunnel(0, 64) + ubend(16, 32) + resize1(32-rng(64)),
+      tunnel(0, 64) + sbend(16, 32) + resize1(32-rng(64)),
+      tunnel(0, 64) + zbend(16, 32) + resize1(32-rng(64)),
+    })
+    next_slice = b()
 
-    del(chunk_queue, chunk_queue[1])
-
-    if #chunk_queue < 1 then
-     add(chunk_queue, tunnel(cave_y1, cave_y2-cave_y1))
-    else
-     --chunk_queue[1] += tunnel(cave_y1, cave_y2-cave_y1)
-    end
    end
-
-   next_slice = chunk_queue[1](chunk_p)
 
    cave_slices[128] = {}
    for p in all(next_slice) do
-    add(cave_slices[128], cave_y1 + p)
+    add(cave_slices[128], p)
    end
   end
  end
@@ -658,6 +635,18 @@ function avg(l)
  return t / #l
 end
 
+function rng(n)
+ local r = {n}
+ setmetatable(r, {
+  __add = function(v1, v2) dbg("add") return flr(rnd(n)) + v1 end,
+  __pow = function(v1, v2) dbg("pow") return flr(rnd(n)) ^ v1 end,
+  __div = function(v1, v2) dbg("div") return flr(rnd(n)) / v1 end,
+  __mul = function(v1, v2) dbg("mul") return flr(rnd(n)) * v1 end,
+  __sub = function(v1, v2) dbg("sub") return flr(rnd(n)) - v1 end,
+ })
+ return r
+end
+
 function fill(n, v)
  local tbl = {}
  for i = 1,n do
@@ -672,6 +661,42 @@ end
 
 function last(t)
  return t[#t]
+end
+
+function biome(l, c)
+ local b = {}
+ local cf = c[flr(rnd(#c))+1]
+ local ci = 1
+ local cc = 0
+ local cp = 0
+ local cy = 0
+ local ly = 0
+ setmetatable(b, {
+  __call = function(b)
+   cc += 1
+   if cc < 128 then
+    cp = cc/128
+   elseif ci < l then
+    cf = c[flr(rnd(#c))+1]
+    ci += 1
+    cc = 1
+    cp = 0
+    cy = ly
+   else
+    return nil
+   end
+   local v = cf(cp)
+   for i,p in pairs(v) do
+    v[i] += cy
+   end
+   ly = v[1]
+   return v
+  end,
+  __len = function(b)
+   return l*128
+  end,
+ })
+ return b
 end
 
 function chunk(y1, y2)
@@ -738,6 +763,13 @@ function corridor(d, h)
  return chunk(
   static(d),
   static(d + h)
+ )
+end
+
+function resize1(y)
+ return chunk(
+  linear(y),
+  linear(y)
  )
 end
 
