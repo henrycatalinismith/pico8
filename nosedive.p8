@@ -57,6 +57,7 @@ function _init()
  camera_error_count = 0
 
  cave_slices = fill(128, {8,118})
+ coin_height = 64
  cave_x1 = 1
  cave_x2 = cave_x1 + 128
  cave_y1 = cave_slices[127][1]
@@ -174,6 +175,9 @@ function _update60()
    for p in all(next_slice) do
     add(cave_slices[128], p)
    end
+   coin_height = cave_slices[128][1] + ((
+    cave_slices[128][#cave_slices[128]] - cave_slices[128][1]
+   ) / 2) - 4
   end
  end
 
@@ -304,12 +308,10 @@ function _update60()
     del(coins, coin)
    end
   end
-  while #coins < 8 do
+  if #coins == 0 or coins[#coins].x2 < camera_x2 - 8 then
+   dbg("add coin")
    local x1 = cave_x1 + 8
-   local y1 = (cave_slices[128][1] + (
-    cave_slices[128][2] -
-    cave_slices[128][1]
-   ) / 2) - 5
+   local y1 = coin_height
    if coins[#coins] then
     x1 = coins[#coins].x1 + 16
    end
@@ -747,8 +749,8 @@ end
 
 function tunnel(d, h)
  return chunk(
-  static(d),
-  static(d + h)
+  static(d) + noise(1),
+  static(d + h) + noise(1)
  )
 end
 
