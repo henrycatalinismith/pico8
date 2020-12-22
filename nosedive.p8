@@ -55,6 +55,7 @@ function _init()
  camera_error_y1 = 0
  camera_offset_y1 = 0
  camera_error_count = 0
+ camera_clean = true
 
  cave_slices = fill(128, {8,118})
  coin_height = 64
@@ -70,10 +71,16 @@ function _init()
  debug_color = 8
 
  b = biome(32, {
-   tunnel(0, 64) + nbend(16+rng(2), 32+rng(2)) + resize1(32-rng(64)),
-   tunnel(0, 64) + ubend(16+rng(2), 32+rng(2)) + resize1(32-rng(64)),
-   tunnel(0, 64) + sbend(16+rng(2), 32+rng(2)) + resize1(32-rng(64)),
-   tunnel(0, 64) + zbend(16+rng(2), 32+rng(2)) + resize1(32-rng(64)),
+   tunnel(0, 64) + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
+   tunnel(0, 64) + ubend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
+   tunnel(0, 64) + sbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
+   tunnel(0, 64) + zbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
+ })
+
+ b = biome(4, {
+   tunnel(0, 64) + zig(32),
+   tunnel(0, 64) + zag(32),
+   tunnel(0, 64) + zigzag(16),
  })
 
  helicopter_x = 48
@@ -116,31 +123,43 @@ function _update60()
 
 
  if update(update_camera) then
-  if rotor_collision_frame and helicopter_y-64>camera_y1 then
-   camera_ideal_y1 = helicopter_y-64
-  else
-   camera_ideal_y1 = avg({
-    cave_slices[32][1] + 1,
-    last(cave_slices[32]),
-    cave_slices[96][1] + 1,
-    last(cave_slices[96]),
-   }) - 64
+  camera_clean = true
+  for x=1,128 do
+   if cave_slices[x][1] < camera_y1 then
+    camera_clean = false
+   end
+   if last(cave_slices[x]) > camera_y2 then
+    camera_clean = false
+   end
   end
 
-  camera_offset_y1 = camera_y1 - camera_ideal_y1
-  camera_error_y1 = abs(camera_offset_y1)
+  if not camera_clean then
+   if rotor_collision_frame and helicopter_y-64>camera_y1 then
+    camera_ideal_y1 = helicopter_y-64
+   else
+    camera_ideal_y1 = avg({
+     cave_slices[32][1] + 1,
+     last(cave_slices[32]),
+     cave_slices[96][1] + 1,
+     last(cave_slices[96]),
+    }) - 64
+   end
 
-  if camera_error_y1 < 1 then
-   camera_error_count = 0
-  else
-   camera_error_count += 1
+   camera_offset_y1 = camera_y1 - camera_ideal_y1
+   camera_error_y1 = abs(camera_offset_y1)
+
+   if camera_error_y1 < 1 then
+    camera_error_count = 0
+   else
+    camera_error_count += 1
+   end
+
+   camera_vy = flr(
+    camera_offset_y1
+    * (camera_error_count / 256)
+    * -1
+   )
   end
-
-  camera_vy = flr(
-   camera_offset_y1
-   * (camera_error_count / 256)
-   * -1
-  )
 
   camera_x1 += camera_vx
   camera_y1 += camera_vy
@@ -751,6 +770,33 @@ function tunnel(d, h)
  return chunk(
   static(d) + noise(1),
   static(d + h) + noise(1)
+ )
+end
+
+function zig(y)
+ return chunk(
+  linear(-y) % range(0, 0.5) + linear(y) % range(0.5, 1),
+  linear(-y) % range(0, 0.5) + linear(y) % range(0.5, 1)
+ )
+end
+
+function zag(y)
+ return chunk(
+  linear(y) % range(0, 0.5) + linear(-y) % range(0.5, 1),
+  linear(y) % range(0, 0.5) + linear(-y) % range(0.5, 1)
+ )
+end
+
+function zigzag(y)
+ return chunk(
+  linear(y) % range(0, 0.25)
+  + linear(-y) % range(0.25, 0.5)
+  + linear(y) % range(0.5, 0.75)
+  + linear(-y) % range(0.75, 1),
+  linear(y) % range(0, 0.25)
+  + linear(-y) % range(0.25, 0.5)
+  + linear(y) % range(0.5, 0.75)
+  + linear(-y) % range(0.75, 1)
  )
 end
 
