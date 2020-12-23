@@ -56,12 +56,21 @@ function _init()
  camera_offset_y1 = 0
  camera_error_count = 0
 
- cave_slices = fill(128, {8,118})
+ cave_floor = fill(128, 118)
+ cave_floor_blur_colors = fill(128, 1)
+ cave_floor_blur_heights = fill(128, 0)
+ cave_floor_edge_colors = fill(128, 7)
+ cave_floor_edge_heights = fill(128, 0)
+ cave_roof = fill(128, 8)
+ cave_roof_blur_colors = fill(128, 1)
+ cave_roof_blur_heights = fill(128, 0)
+ cave_roof_edge_colors = fill(128, 7)
+ cave_roof_edge_heights = fill(128, 0)
  coin_height = 64
  cave_x1 = 1
  cave_x2 = cave_x1 + 128
- cave_y1 = cave_slices[127][1]
- cave_y2 = last(cave_slices[127])
+ cave_y1 = cave_roof[128]
+ cave_y2 = cave_floor[128]
 
  coins = {}
  coins_count = 0
@@ -81,6 +90,11 @@ function _init()
    tunnel(0, 72) + zag(32),
    tunnel(0, 72) + zigzag(16),
  })
+
+
+ --b = biome(16, {
+   --tunnel(0, 112)
+ --})
 
  helicopter_x = 48
  helicopter_y = 80
@@ -105,15 +119,6 @@ function _init()
  rotor_collision_frame = nil
  helicopter_collision_frame = nil
 
- for x = 48, 64 do
-  cave_slices[x] = {
-   cave_slices[x][1],
-   48,
-   64,
-   cave_slices[x][2],
-  }
- end
-
  smoke = {}
 end
 
@@ -127,10 +132,10 @@ function _update60()
    camera_ideal_y1 = helicopter_y-64
   else
    camera_ideal_y1 = avg({
-    cave_slices[32][1] + 1,
-    last(cave_slices[32]),
-    cave_slices[96][1] + 1,
-    last(cave_slices[96]),
+    cave_roof[32] + 1,
+    cave_floor[32],
+    cave_roof[96] + 1,
+    cave_floor[96],
    }) - 64
   end
 
@@ -158,7 +163,14 @@ function _update60()
  if update(update_cave) then
   for i = 1,camera_vx do
    for j = 1, 127 do
-    cave_slices[j] = cave_slices[j+1]
+    cave_floor[j] = cave_floor[j+1]
+    cave_roof[j] = cave_roof[j+1]
+
+    cave_floor_blur_heights[j] = cave_floor_blur_heights[j+1]
+    cave_floor_edge_heights[j] = cave_floor_edge_heights[j+1]
+    cave_roof_blur_heights[j] = cave_roof_blur_heights[j+1]
+    cave_roof_edge_heights[j] = cave_roof_edge_heights[j+1]
+
    end
 
    cave_x1 += 1
@@ -167,23 +179,23 @@ function _update60()
 
    if next_slice == nil or #next_slice == 0 then
     dbg("next plz")
+    cave_y1 = cave_roof[127]
+    cave_y2 = cave_floor[127]
 
-    b = biome(8, {
-      tunnel(0, 72) + nbend(16, 32) + resize1(32-rnd(64)),
-      tunnel(0, 72) + ubend(16, 32) + resize1(32-rnd(64)),
-      tunnel(0, 72) + sbend(16, 32) + resize1(32-rnd(64)),
-      tunnel(0, 72) + zbend(16, 32) + resize1(32-rnd(64)),
+    b = biome(2, {
+      tunnel(cave_y1, cave_y2-cave_y1),
+      --tunnel(cave_y1, cave_y2-cave_y1) + nbend(16, 32),
+      --tunnel(cave_y1, cave_y2-cave_y1) + ubend(16, 32),
+      --tunnel(cave_y1, cave_y2-cave_y1) + sbend(16, 32),
+      --tunnel(cave_y1, cave_y2-cave_y1) + zbend(16, 32),
     })
     next_slice = b()
 
    end
 
-   cave_slices[128] = {}
-   for p in all(next_slice) do
-    add(cave_slices[128], p)
-   end
-   coin_height = cave_slices[128][1] + ((
-    cave_slices[128][#cave_slices[128]] - cave_slices[128][1]
+   add_cave(128, next_slice[1], next_slice[2])
+   coin_height = cave_roof[128] + ((
+    cave_floor[128] - cave_roof[128]
    ) / 2) - 4
   end
  end
@@ -216,6 +228,23 @@ function _update60()
    helicopter_inclination = "hovering"
   end
 
+  bright = 7
+  dim = 1
+  for i = 1, 128 do
+   if helicopter_x - camera_x1 > i then
+    cave_roof_edge_colors[i] = 1
+    cave_floor_edge_colors[i] = 1
+   elseif helicopter_y - cave_roof[i] - (i/2) < 8 then
+    cave_roof_edge_colors[i] = bright
+    cave_floor_edge_colors[i] = dim
+   elseif cave_floor[i] - helicopter_y - (i/2) < 8 then
+    cave_roof_edge_colors[i] = dim
+    cave_floor_edge_colors[i] = bright
+   else
+    cave_floor_edge_colors[i] = dim
+   end
+  end
+
  end
 
  if update(update_hitbox) then
@@ -226,17 +255,16 @@ function _update60()
 
   for x = hitbox_x1,hitbox_x2 do
    local i = x-camera_x1
-   local slice = cave_slices[i]
-   local roof = slice[1]
-   local floor = slice[#slice]
+   local roof = cave_roof[i]
+   local floor = cave_floor[i]
    for y = hitbox_y1,hitbox_y2 do
-    if not is_space(x, y) then
-     local n = nearest(slice, y)
-     if (n%2) == 1 then
-      rotor_collision()
-     else
-      helicopter_collision()
-     end
+    local i = flr(x) - camera_x1
+    if y < cave_roof[i] then
+     rotor_collision()
+     goto boom
+    end
+    if y > cave_floor[i] then
+     helicopter_collision()
      goto boom
     end
    end
@@ -290,18 +318,20 @@ function _update60()
     d.vy = 0
    end
 
-   if is_space(d.x, d.y + flr(d.vy)) then
-    d.y += d.vy
+   local i = flr(d.x) - camera_x1
+   if i > 128 or i < 1 then
+    -- ignore out of screen debris
+   elseif d.y + flr(d.vy) < cave_roof[i] then
+    -- debris hits roof
+    d.vy *= rnd(0.5) * - 1
+    d.vx = rnd(0.2)
+   elseif d.y + flr(d.vy) > cave_floor[i] then
+    -- debris hits floor
+    d.vy *= rnd(0.3) * - 1
+    d.vx = rnd(0.2)
    else
-    local i = flr(d.x) - camera_x1
-    d.y = cave_slices[i][nearest(cave_slices[i], d.y)]
-    if d.vy > 1 then
-     d.vy *= rnd(0.5) * - 1
-     d.vx = rnd(0.2)
-    else
-     d.vy = 0
-     d.vx = 0
-    end
+    -- debris can move
+    d.y += d.vy
    end
 
    ::continue_debris::
@@ -316,7 +346,6 @@ function _update60()
    end
   end
   if #coins == 0 or coins[#coins].x2 < camera_x2 - 8 then
-   dbg("add coin")
    local x1 = cave_x1 + 8
    local y1 = coin_height
    if coins[#coins] then
@@ -386,44 +415,16 @@ function _draw()
  end
 
  if draw(draw_cave) then
-  local rx1 = camera_x1-1
-  local ry1 = cave_slices[1][1]
-  local rx2 = camera_x1-1
-  local ry2 = cave_slices[1][1]
-  local fx1 = camera_x1-1
-  local fy1 = cave_slices[1][#cave_slices[1]]
-  local fx2 = camera_x1-1
-  local fy2 = cave_slices[1][#cave_slices[1]]
-  line(rx1, ry1, rx2, ry2, 6)
-  line(fx1, fy1, fx2, fy2, 6)
   for i = 1,128 do
-   local slice = cave_slices[i]
-   local x = camera_x1+i-1
-
-   rx2 = x
-   ry2 = slice[1]-1
-   fx2 = x
-   fy2 = slice[#slice]+1
-   line(x, camera_y1-1, x, ry2, 5)
-   line(rx1, ry1-2, rx2, ry2-1, 1)
-   line(rx1, ry1, rx2, ry2, 7)
-   line(x, camera_y2+2, x, fy2, 5)
-   line(fx1, fy1+2, fx2, fy2+1, 1)
-   line(fx1, fy1, fx2, fy2, 7)
-   rx1 = rx2
-   ry1 = ry2
-   fx1 = fx2
-   fy1 = fy2
-
-   if #slice > 2 then
-    for j = 2,#slice-2,2 do
-     line(x, slice[j]+1, x, slice[j]+1, 7)
-     line(x, slice[j]+2, x, slice[j]+2, 1)
-     line(x, slice[j]+3, x, slice[j+1]-2, 5)
-     line(x, slice[j+1]-2, x, slice[j+1]-2, 1)
-     line(x, slice[j+1]-1, x, slice[j+1]-1, 7)
-    end
-   end
+   local x = camera_x1 + i
+   local roof = cave_roof[i]
+   local floor = cave_floor[i]
+   line(x, camera_y1, x, roof, 5)
+   line(x, roof, x, roof - cave_roof_blur_heights[i], cave_roof_blur_colors[i])
+   line(x, roof, x, roof - cave_roof_edge_heights[i], cave_roof_edge_colors[i])
+   line(x, floor, x, camera_y2, 5)
+   line(x, floor, x, floor + cave_floor_blur_heights[i], cave_floor_blur_colors[i])
+   line(x, floor, x, floor + cave_floor_edge_heights[i], cave_floor_edge_colors[i])
   end
  end
 
@@ -479,8 +480,8 @@ function _draw()
 
   for x = hitbox_x1,hitbox_x2 do
    local i = x-camera_x1
-   pset(x, cave_slices[i][1], 11)
-   pset(x, cave_slices[i][#cave_slices[i]], 11)
+   pset(x, cave_floor[i], 11)
+   pset(x, cave_roof[i], 11)
   end
 
   for coin in all(coins) do
@@ -519,6 +520,72 @@ function _draw()
  end
 end
 
+function add_cave(ci, new_roof, new_floor)
+ cave_roof[ci] = new_roof
+ cave_floor[ci] = new_floor
+
+ local from = max(1, ci - 4)
+ local to = min(127, ci + 4)
+
+ for i = from, to do
+  local roof = cave_roof[i]
+  local floor = cave_floor[i]
+
+  cave_floor_blur_heights[i] = tminmax(max, {
+   floor,
+   tgad(cave_floor, i - 1, 1, floor + 2),
+   tgad(cave_floor, i - 2, 1, floor + 2),
+   tgad(cave_floor, i + 1, 1, floor + 2),
+   tgad(cave_floor, i + 2, 1, floor + 2),
+  }) - floor
+
+  cave_floor_edge_heights[i] = tminmax(max, {
+   floor,
+   tgad(cave_floor, i - 1, 0, floor),
+   tgad(cave_floor, i + 1, 0, floor),
+  }) - floor
+
+  cave_roof_blur_heights[i] = roof - tminmax(min, {
+   roof,
+   tgad(cave_roof, i - 1, -1, roof),
+   tgad(cave_roof, i - 2, -1, roof),
+   tgad(cave_roof, i + 1, -1, roof),
+   tgad(cave_roof, i + 2, -1, roof),
+  })
+
+  cave_roof_edge_heights[i] = roof - tminmax(min, {
+   roof,
+   tgad(cave_roof, i - 1, 0, roof),
+   tgad(cave_roof, i + 1, 0, roof),
+  })
+ end
+end
+
+function tgad(t, g, a, d)
+ if t[g] == nil or t[g] == nil then
+  return d
+ else
+  return t[g] + a
+ end
+end
+
+function tminmax(fn, t)
+ if #t == 0 then
+  return nil
+ elseif #t == 1 then
+  return t[1]
+ else
+  local m = t[1]
+  for i = 2, #t do
+   m = fn(m, t[i])
+  end
+  return m
+ end
+end
+
+
+
+
 function nearest(t, n)
  local v = 1
  for i = 2,#t do
@@ -531,16 +598,16 @@ end
 
 function is_space(x, y)
  local i = flr(x) - camera_x1
- local slice = cave_slices[i]
  if i > 128 or i < 1 then
   return true
  end
- for j = 1,#slice,2 do
-  if y >= slice[j] and y <= slice[j+1] then
-   return true
-  end
+ if y < cave_roof[i] then
+  return false
  end
- return false
+ if y > cave_floor[i] then
+  return false
+ end
+ return true
 end
 
 function rotor_collision()
@@ -732,16 +799,6 @@ function chunk_call(c, p)
  return v
 end
 
-function sort(a)
- for i=1,#a do
-  local j = i
-  while j > 1 and a[j-1] > a[j] do
-   a[j],a[j-1] = a[j-1],a[j]
-   j = j - 1
-  end
- end
-end
-
 function tunnel(d, h)
  return chunk(
   static(d) + noise(1),
@@ -801,13 +858,6 @@ function resize(y1, y2)
  return chunk(
   linear(y1),
   linear(y2)
- )
-end
-
-function rock(x, y, r)
- return chunk(
-  fragment(x, y, r, -1),
-  fragment(x, y, r, 1)
  )
 end
 
