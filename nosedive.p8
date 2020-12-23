@@ -78,23 +78,16 @@ function _init()
  debug_messages = {}
  debug_color = 8
 
- b = biome(32, {
-   tunnel(0, 64) + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
-   tunnel(0, 64) + ubend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
-   tunnel(0, 64) + sbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
-   tunnel(0, 64) + zbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
+ b = biome(1, {
+   tunnel(0, 72) + sinechunk(16, 1) + resize1(32-rnd(64)),
+   --tunnel(0, 72) + zig(32) + resize1(32-rnd(64)),
+   --tunnel(0, 72) + zag(32) + resize1(32-rnd(64)),
+   --tunnel(0, 72) + zigzag(16) + resize1(64-rnd(128)),
+   --tunnel(0, 72) + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
+   --tunnel(0, 72) + ubend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
+   --tunnel(0, 72) + sbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
+   --tunnel(0, 72) + zbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
  })
-
- b = biome(4, {
-   tunnel(0, 72) + zig(32),
-   tunnel(0, 72) + zag(32),
-   tunnel(0, 72) + zigzag(16),
- })
-
-
- --b = biome(16, {
-   --tunnel(0, 112)
- --})
 
  helicopter_x = 48
  helicopter_y = 80
@@ -170,30 +163,16 @@ function _update60()
     cave_floor_edge_heights[j] = cave_floor_edge_heights[j+1]
     cave_roof_blur_heights[j] = cave_roof_blur_heights[j+1]
     cave_roof_edge_heights[j] = cave_roof_edge_heights[j+1]
-
    end
 
    cave_x1 += 1
    cave_x2 = cave_x1 + 128
    next_slice = b()
 
-   if next_slice == nil or #next_slice == 0 then
-    dbg("next plz")
-    cave_y1 = cave_roof[127]
-    cave_y2 = cave_floor[127]
-
-    b = biome(2, {
-      tunnel(cave_y1, cave_y2-cave_y1),
-      --tunnel(cave_y1, cave_y2-cave_y1) + nbend(16, 32),
-      --tunnel(cave_y1, cave_y2-cave_y1) + ubend(16, 32),
-      --tunnel(cave_y1, cave_y2-cave_y1) + sbend(16, 32),
-      --tunnel(cave_y1, cave_y2-cave_y1) + zbend(16, 32),
-    })
-    next_slice = b()
-
-   end
-
    add_cave(128, next_slice[1], next_slice[2])
+   cave_y1 = cave_roof[#cave_roof]
+   cave_y2 = cave_floor[#cave_floor]
+   cave_height = cave_y2 - cave_y1
    coin_height = cave_roof[128] + ((
     cave_floor[128] - cave_roof[128]
    ) / 2) - 4
@@ -231,17 +210,15 @@ function _update60()
   bright = 7
   dim = 1
   for i = 1, 128 do
-   if helicopter_x - camera_x1 > i then
-    cave_roof_edge_colors[i] = 1
-    cave_floor_edge_colors[i] = 1
-   elseif helicopter_y - cave_roof[i] - (i/2) < 8 then
-    cave_roof_edge_colors[i] = bright
-    cave_floor_edge_colors[i] = dim
-   elseif cave_floor[i] - helicopter_y - (i/2) < 8 then
-    cave_roof_edge_colors[i] = dim
-    cave_floor_edge_colors[i] = bright
-   else
-    cave_floor_edge_colors[i] = dim
+   cave_roof_edge_colors[i] = dim
+   cave_floor_edge_colors[i] = dim
+   if helicopter_x - camera_x1 < i then
+    if helicopter_y - cave_roof[i] - i/2 < 2 then
+     cave_roof_edge_colors[i] = bright
+    end
+    if cave_floor[i] - helicopter_y - i/2 < 8 then
+     cave_floor_edge_colors[i] = bright
+    end
    end
   end
 
@@ -281,9 +258,9 @@ function _update60()
       add(debris, {
        color = choose({9,10}),
        x = coin.x1,
-       y = coin.y1,
-       vx = helicopter_vx + 1 - rnd(2),
-       vy = helicopter_vy - rnd(4),
+       y = coin.y1+2,
+       vx = -1+rnd(2),
+       vy = helicopter_vy + rnd(8),
       })
      end
 
@@ -514,9 +491,10 @@ function _draw()
  camera(0, 0)
  if draw(draw_debug) then
   for i,debug_message in pairs(debug_messages) do
-    print(debug_message[1], 0, ((i-1)*8)+96, debug_message[2])
+   print(debug_message[1], 0, ((i-1)*8)+96, debug_message[2])
   end
   draw_bar("cpu", stat(1), 1, 123)
+  print(cave_y1, 32, 1, 7)
  end
 end
 
@@ -740,7 +718,7 @@ function biome(l, c)
    cc += 1
    if cc < 128 then
     cp = cc/128
-   elseif ci < l then
+   elseif true then
     cf = c[flr(rnd(#c))+1]
     ci += 1
     cc = 1
@@ -1036,6 +1014,13 @@ function zshape(r1, r2)
  return (
   static(r2) + pythagoras(r1) % range(0, p1)
   + pythagoras(r2) * invert() % reverse() % range(p1, 1)
+ )
+end
+
+function sinechunk(m, f)
+ return chunk(
+  sinewave(m,f),
+  sinewave(m,f)
  )
 end
 

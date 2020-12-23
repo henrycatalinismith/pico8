@@ -342,7 +342,7 @@ end
 
 function _update()
  b = biome(4, {
-   tunnel(0, 32) + nbend(16, 32) + resize1(32-rng(64)),
+   tunnel(0, 32),
    tunnel(0, 32) + sbend(16, 32) + resize1(32-rng(64)),
    tunnel(0, 32) + zbend(16, 32) + resize1(32-rng(64)),
  })
