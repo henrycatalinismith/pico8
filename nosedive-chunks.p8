@@ -48,6 +48,33 @@ function sort(a)
  end
 end
 
+function zig(y)
+ return chunk(
+  linear(-y) % range(0, 0.5) + linear(y) % range(0.5, 1),
+  linear(-y) % range(0, 0.5) + linear(y) % range(0.5, 1)
+ )
+end
+
+function zag(y)
+ return chunk(
+  linear(y) % range(0, 0.5) + linear(-y) % range(0.5, 1),
+  linear(y) % range(0, 0.5) + linear(-y) % range(0.5, 1)
+ )
+end
+
+function zigzag(y)
+ return chunk(
+  linear(y) % range(0, 0.25)
+  + linear(-y) % range(0.25, 0.5)
+  + linear(y) % range(0.5, 0.75)
+  + linear(-y) % range(0.75, 1),
+  linear(y) % range(0, 0.25)
+  + linear(-y) % range(0.25, 0.5)
+  + linear(y) % range(0.5, 0.75)
+  + linear(-y) % range(0.75, 1)
+ )
+end
+
 function tunnel(d, h)
  return chunk(
   static(d),
@@ -337,6 +364,21 @@ function _init()
  add(chunks, {
    name = "room(1)",
    fn = room(1),
+ })
+
+ add(chunks, {
+   name = "zig(32)",
+   fn = zig(32),
+ })
+
+ add(chunks, {
+   name = "zag(32)",
+   fn = zag(32),
+ })
+
+ add(chunks, {
+   name = "zigzag(32)",
+   fn = zigzag(32),
  })
 
  cave = {}
