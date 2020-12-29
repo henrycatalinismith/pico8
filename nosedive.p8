@@ -54,40 +54,44 @@ function _init()
  camera_ideal_y1 = camera_y1
  camera_error_y1 = 0
  camera_offset_y1 = 0
- camera_error_count = 0
+ camera_error_count = -1
 
- cave_floor = fill(128, 118)
- cave_floor_blur_colors = fill(128, 1)
- cave_floor_blur_heights = fill(128, 0)
- cave_floor_edge_colors = fill(128, 7)
- cave_floor_edge_heights = fill(128, 0)
- cave_roof = fill(128, 8)
- cave_roof_blur_colors = fill(128, 1)
- cave_roof_blur_heights = fill(128, 0)
- cave_roof_edge_colors = fill(128, 7)
- cave_roof_edge_heights = fill(128, 0)
- coin_height = 64
  cave_x1 = 1
  cave_x2 = cave_x1 + 128
- cave_y1 = cave_roof[128]
- cave_y2 = cave_floor[128]
+
+ chunk_fn = tunnel(0, 88) + resize1(32)
+ chunk_p = 0
+ chunk_length = 128*camera_vx
+ chunk_x1 = cave_x1
+ chunk_x2 = chunk_x1 + chunk_length
+
+ cave_floor = fill(chunk_length, 118)
+ cave_floor_blur_colors = fill(chunk_length, 1)
+ cave_floor_blur_heights = fill(chunk_length, 0)
+ cave_floor_edge_colors = fill(chunk_length, 7)
+ cave_floor_edge_heights = fill(chunk_length, 0)
+ cave_roof = fill(chunk_length, 8)
+ cave_roof_blur_colors = fill(chunk_length, 1)
+ cave_roof_blur_heights = fill(chunk_length, 0)
+ cave_roof_edge_colors = fill(chunk_length, 7)
+ cave_roof_edge_heights = fill(chunk_length, 0)
+ coin_height = 64
+
+ cave_y1 = cave_roof[chunk_length]
+ cave_y2 = cave_floor[chunk_length]
+
+ for x = 1,chunk_length do
+  local slice = chunk_fn(x/chunk_length)
+  add_cave(x, slice[1], slice[2])
+ end
+
+ chunk_y1 = cave_roof[#cave_roof]
 
  coins = {}
  coins_count = 0
 
  debug_messages = {}
  debug_color = 8
-
- b = biome(1, {
-   tunnel(0, 72) + sinechunk(16, 1) + resize1(32-rnd(64)),
-   --tunnel(0, 72) + zig(32) + resize1(32-rnd(64)),
-   --tunnel(0, 72) + zag(32) + resize1(32-rnd(64)),
-   --tunnel(0, 72) + zigzag(16) + resize1(64-rnd(128)),
-   --tunnel(0, 72) + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
-   --tunnel(0, 72) + ubend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
-   --tunnel(0, 72) + sbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
-   --tunnel(0, 72) + zbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)),
- })
 
  helicopter_x = 48
  helicopter_y = 80
@@ -155,7 +159,7 @@ function _update60()
 
  if update(update_cave) then
   for i = 1,camera_vx do
-   for j = 1, 127 do
+   for j = 1, chunk_length-1 do
     cave_floor[j] = cave_floor[j+1]
     cave_roof[j] = cave_roof[j+1]
 
@@ -167,9 +171,50 @@ function _update60()
 
    cave_x1 += 1
    cave_x2 = cave_x1 + 128
-   next_slice = b()
 
-   add_cave(128, next_slice[1], next_slice[2])
+   if cave_x2 < chunk_x2 then
+    chunk_p = (cave_x2 - chunk_x1) / chunk_length
+   elseif cave_x2 == chunk_x2 then
+    chunk_p = 1
+    dbg("last" .. cave_x2)
+   else
+    dbg("nxtchunk " .. chunk_x2 .. ":" .. cave_x2)
+
+    chunk_p = 0
+    chunk_x1 = cave_x2
+    chunk_x2 = chunk_x1 + chunk_length
+    chunk_y1 = cave_roof[#cave_roof]
+
+    local r = flrrnd(8)
+    r = 0
+    if r == 0 then
+     chunk_fn = tunnel(0, 64) + sinechunk(16, 2) + resize1(128)
+    elseif r == 1 then
+     chunk_fn = tunnel(0, 96) + zig(32) + resize1(32-rnd(64))
+    elseif r == 2 then
+     chunk_fn = tunnel(0, 96) + zag(32) + resize1(32-rnd(64))
+    elseif r == 3 then
+     chunk_fn = tunnel(0, 96) + zigzag(32) + resize1(32-rnd(64))
+    elseif r == 4 then
+     chunk_fn = tunnel(0, 72) + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+    elseif r == 5 then
+     chunk_fn = tunnel(0, 72) + ubend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+    elseif r == 6 then
+     chunk_fn = tunnel(0, 72) + sbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+    elseif r == 7 then
+     chunk_fn = tunnel(0, 72) + zbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+    end
+
+    dbg(chunk_y1)
+   end
+
+   next_slice = chunk_fn(chunk_p)
+
+   add_cave(
+    chunk_length,
+    chunk_y1 + next_slice[1],
+    chunk_y1 + next_slice[2]
+   )
    cave_y1 = cave_roof[#cave_roof]
    cave_y2 = cave_floor[#cave_floor]
    cave_height = cave_y2 - cave_y1
@@ -503,7 +548,7 @@ function add_cave(ci, new_roof, new_floor)
  cave_floor[ci] = new_floor
 
  local from = max(1, ci - 4)
- local to = min(127, ci + 4)
+ local to = min(chunk_length-1, ci + 4)
 
  for i = from, to do
   local roof = cave_roof[i]
@@ -703,42 +748,6 @@ end
 
 function last(t)
  return t[#t]
-end
-
-function biome(l, c)
- local b = {}
- local cf = c[flr(rnd(#c))+1]
- local ci = 1
- local cc = 0
- local cp = 0
- local cy = 0
- local ly = 0
- setmetatable(b, {
-  __call = function(b)
-   cc += 1
-   if cc < 128 then
-    cp = cc/128
-   elseif true then
-    cf = c[flr(rnd(#c))+1]
-    ci += 1
-    cc = 1
-    cp = 0
-    cy = ly
-   else
-    return nil
-   end
-   local v = cf(cp)
-   for i,p in pairs(v) do
-    v[i] += cy
-   end
-   ly = v[1]
-   return v
-  end,
-  __len = function(b)
-   return l*128
-  end,
- })
- return b
 end
 
 function chunk(y1, y2)
