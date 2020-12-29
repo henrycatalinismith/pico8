@@ -5,6 +5,8 @@ __lua__
 -- by hen
 
 function _init()
+ poke(0x5f80, 1)
+
  update_mode = 0
  update_camera = 1
  update_cave = 2
