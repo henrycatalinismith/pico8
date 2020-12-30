@@ -370,6 +370,10 @@ function _draw()
   camera(0, 0)
 
   sspr(0, 65, 64, 11, 30, 48)
+
+  if loop(clock_frame, 64, 2) == 0 then
+   print("tap to start", 38, 64)
+  end
  end
 
  if draw(draw_coins) then
