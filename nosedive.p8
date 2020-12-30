@@ -5,8 +5,6 @@ __lua__
 -- by hen
 
 function _init()
- poke(0x5f80, 1)
-
  update_mode = 0
  update_camera = 1
  update_cave = 2
@@ -16,6 +14,8 @@ function _init()
  update_debris = 32
  update_coins = 64
  update_smoke = 128
+ update_menu = 256
+ update_dead = 512
 
  update_enable(update_camera)
  update_enable(update_cave)
@@ -35,6 +35,8 @@ function _init()
  draw_coins = 32
  draw_debug = 64
  draw_smoke = 128
+ draw_menu = 256
+ draw_dead = 512
 
  draw_enable(draw_cave)
  draw_enable(draw_helicopter)
@@ -46,84 +48,23 @@ function _init()
  draw_enable(draw_smoke)
 
  clock_frame = 0
-
- camera_x1 = 1
- camera_y1 = 0
- camera_x2 = camera_x1 + 128
- camera_y2 = camera_y1 + 128
- camera_vx = 2
- camera_vy = 0
- camera_ideal_y1 = camera_y1
- camera_error_y1 = 0
- camera_offset_y1 = 0
- camera_error_count = -1
-
- cave_x1 = 1
- cave_x2 = cave_x1 + 128
-
- chunk_fn = tunnel(0, 88) + resize1(32)
- chunk_p = 0
- chunk_length = 128*camera_vx
- chunk_x1 = cave_x1
- chunk_x2 = chunk_x1 + chunk_length
-
- cave_floor = fill(chunk_length, 118)
- cave_floor_blur_colors = fill(chunk_length, 1)
- cave_floor_blur_heights = fill(chunk_length, 0)
- cave_floor_edge_colors = fill(chunk_length, 7)
- cave_floor_edge_heights = fill(chunk_length, 0)
- cave_roof = fill(chunk_length, 8)
- cave_roof_blur_colors = fill(chunk_length, 1)
- cave_roof_blur_heights = fill(chunk_length, 0)
- cave_roof_edge_colors = fill(chunk_length, 7)
- cave_roof_edge_heights = fill(chunk_length, 0)
- coin_height = 64
-
- cave_y1 = cave_roof[chunk_length]
- cave_y2 = cave_floor[chunk_length]
-
- for x = 1,chunk_length do
-  local slice = chunk_fn(x/chunk_length)
-  add_cave(x, slice[1], slice[2])
- end
-
- chunk_y1 = cave_roof[#cave_roof]
-
- coins = {}
- coins_count = 0
-
- debug_messages = {}
- debug_color = 8
-
- helicopter_x = 48
- helicopter_y = 80
- helicopter_vx = camera_vx
- helicopter_vy = 0
- helicopter_inclination = "hovering"
- helicopter_gravity = 0.1
- helicopter_min_vy = -1.5
- helicopter_max_vy = 2
-
- hitbox_x1 = helicopter_x - 4
- hitbox_y1 = helicopter_y - 4
- hitbox_x2 = hitbox_x1 + 8
- hitbox_y2 = hitbox_y1 + 6
-
- rotor_engaged = false
- rotor_vy = 0
- rotor_power = -0.3
-
- debris = {}
-
- rotor_collision_frame = nil
- helicopter_collision_frame = nil
-
- smoke = {}
+ mode("menu")
 end
 
 function _update60()
  clock_frame += 1
 
+ if update(update_menu) then
+  if btnp() > 0 then
+   mode("play")
+  end
+ end
+
+ if update(update_dead) then
+  if btnp() > 0 then
+   mode("menu")
+  end
+ end
 
  if update(update_camera) then
 
@@ -425,6 +366,11 @@ function _draw()
 
  cls(0)
 
+ if draw(draw_menu) then
+  camera(0, 0)
+  print("nosedive", 1, 1, 7)
+ end
+
  if draw(draw_coins) then
   for coin in all(coins) do
    local x = coin.x1+1
@@ -452,17 +398,19 @@ function _draw()
   end
  end
 
- local helicopter_sprite_column = ({
-  hovering = 1,
-  dropping = 2,
-  climbing = 3,
- })[helicopter_inclination]
- local helicopter_sprite_x = (helicopter_sprite_column - 1) * 16
- local tail_y_offset = ({
-  hovering = 2,
-  dropping = 0,
-  climbing = 3,
- })[helicopter_inclination]
+ if draw(draw_helicopter) or draw(draw_rotor) then
+  helicopter_sprite_column = ({
+   hovering = 1,
+   dropping = 2,
+   climbing = 3,
+  })[helicopter_inclination]
+  helicopter_sprite_x = (helicopter_sprite_column - 1) * 16
+  tail_y_offset = ({
+   hovering = 2,
+   dropping = 0,
+   climbing = 3,
+  })[helicopter_inclination]
+end
 
  if draw(draw_helicopter) then
   sspr(
@@ -543,6 +491,11 @@ function _draw()
   draw_bar("cpu", stat(1), 1, 123)
   print(cave_y1, 32, 1, 7)
  end
+
+ if draw(draw_dead) then
+  print("dead", 48, 48, 7)
+  print("tap to continue", 48, 56, 7)
+ end
 end
 
 function add_cave(ci, new_roof, new_floor)
@@ -583,6 +536,117 @@ function add_cave(ci, new_roof, new_floor)
    tgad(cave_roof, i - 1, 0, roof),
    tgad(cave_roof, i + 1, 0, roof),
   })
+ end
+end
+
+function mode(m)
+ update_disable(update_mode)
+ draw_disable(draw_mode)
+
+ if m == "menu" then
+  update_enable(update_menu)
+  draw_enable(draw_menu)
+ elseif m == "play" then
+  update_enable(update_camera)
+  update_enable(update_cave)
+  update_enable(update_helicopter)
+  update_enable(update_rotor)
+  update_enable(update_hitbox)
+  update_enable(update_coins)
+  update_enable(update_debris)
+  update_enable(update_smoke)
+
+  draw_enable(draw_cave)
+  draw_enable(draw_helicopter)
+  draw_enable(draw_rotor)
+  draw_enable(draw_coins)
+  draw_enable(draw_debris)
+  draw_enable(draw_debug)
+  draw_enable(draw_smoke)
+
+  camera_x1 = 1
+  camera_y1 = 0
+  camera_x2 = camera_x1 + 128
+  camera_y2 = camera_y1 + 128
+  camera_vx = 2
+  camera_vy = 0
+  camera_ideal_y1 = camera_y1
+  camera_error_y1 = 0
+  camera_offset_y1 = 0
+  camera_error_count = -1
+
+  cave_x1 = 1
+  cave_x2 = cave_x1 + 128
+
+  chunk_fn = tunnel(0, 88) + resize1(32)
+  chunk_p = 0
+  chunk_length = 128*camera_vx
+  chunk_x1 = cave_x1
+  chunk_x2 = chunk_x1 + chunk_length
+
+  cave_floor = fill(chunk_length, 118)
+  cave_floor_blur_colors = fill(chunk_length, 1)
+  cave_floor_blur_heights = fill(chunk_length, 0)
+  cave_floor_edge_colors = fill(chunk_length, 7)
+  cave_floor_edge_heights = fill(chunk_length, 0)
+  cave_roof = fill(chunk_length, 8)
+  cave_roof_blur_colors = fill(chunk_length, 1)
+  cave_roof_blur_heights = fill(chunk_length, 0)
+  cave_roof_edge_colors = fill(chunk_length, 7)
+  cave_roof_edge_heights = fill(chunk_length, 0)
+  coin_height = 64
+
+  cave_y1 = cave_roof[chunk_length]
+  cave_y2 = cave_floor[chunk_length]
+
+  for x = 1,chunk_length do
+   local slice = chunk_fn(x/chunk_length)
+   add_cave(x, slice[1], slice[2])
+  end
+
+  chunk_y1 = cave_roof[#cave_roof]
+
+  coins = {}
+  coins_count = 0
+
+  debug_messages = {}
+  debug_color = 8
+
+  helicopter_x = 48
+  helicopter_y = 80
+  helicopter_vx = camera_vx
+  helicopter_vy = 0
+  helicopter_inclination = "hovering"
+  helicopter_gravity = 0.1
+  helicopter_min_vy = -1.5
+  helicopter_max_vy = 2
+
+  hitbox_x1 = helicopter_x - 4
+  hitbox_y1 = helicopter_y - 4
+  hitbox_x2 = hitbox_x1 + 8
+  hitbox_y2 = hitbox_y1 + 6
+
+  rotor_engaged = false
+  rotor_vy = 0
+  rotor_power = -0.3
+
+  debris = {}
+
+  rotor_collision_frame = nil
+  helicopter_collision_frame = nil
+
+  smoke = {}
+ elseif m == "dead" then
+  update_enable(update_dead)
+  update_enable(update_debris)
+  update_enable(update_smoke)
+
+  draw_enable(draw_dead)
+  draw_enable(draw_cave)
+  draw_enable(draw_coins)
+  draw_enable(draw_debris)
+  draw_enable(draw_debug)
+  draw_enable(draw_smoke)
  end
 end
 
@@ -678,15 +742,8 @@ function helicopter_collision()
  rotor_vy = 0
  helicopter_vy = 0
  helicopter_vx = 0
- update_disable(update_camera)
- update_disable(update_cave)
- update_disable(update_helicopter)
- update_disable(update_hitbox)
- update_enable(update_debris)
- draw_disable(draw_rotor)
- draw_disable(draw_hitbox)
- draw_disable(draw_helicopter)
- draw_enable(draw_debris)
+
+ mode("dead")
 end
 
 function dbg(message)
