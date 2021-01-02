@@ -121,31 +121,32 @@ function _update60()
     chunk_p = 1
     dbg("last" .. cave_x2)
    else
-    dbg("nxtchunk " .. chunk_x2 .. ":" .. cave_x2)
+    dbg("nxtchunk " .. chunk_x2 .. ":" .. cave_x2 .. ", " .. cave_y2 - cave_y1)
 
     chunk_p = 0
     chunk_x1 = cave_x2
     chunk_x2 = chunk_x1 + chunk_length
     chunk_y1 = cave_roof[#cave_roof]
 
+    local t = tunnel(0, cave_y2 - cave_y1 - 4)
     local r = flrrnd(8)
-    r = 0
+    --r = 0
     if r == 0 then
-     chunk_fn = tunnel(0, 64) + sinechunk(16, 2) + resize1(128)
+     chunk_fn = t + sinechunk(16, 2) + resize1(128)
     elseif r == 1 then
-     chunk_fn = tunnel(0, 96) + zig(32) + resize1(32-rnd(64))
+     chunk_fn = t + zig(32) + resize1(32-rnd(64))
     elseif r == 2 then
-     chunk_fn = tunnel(0, 96) + zag(32) + resize1(32-rnd(64))
+     chunk_fn = t + zag(32) + resize1(32-rnd(64))
     elseif r == 3 then
-     chunk_fn = tunnel(0, 96) + zigzag(32) + resize1(32-rnd(64))
+     chunk_fn = t + zigzag(32) + resize1(32-rnd(64))
     elseif r == 4 then
-     chunk_fn = tunnel(0, 72) + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+     chunk_fn = t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
     elseif r == 5 then
-     chunk_fn = tunnel(0, 72) + ubend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+     chunk_fn = t + ubend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
     elseif r == 6 then
-     chunk_fn = tunnel(0, 72) + sbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+     chunk_fn = t + sbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
     elseif r == 7 then
-     chunk_fn = tunnel(0, 72) + zbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+     chunk_fn = t + zbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
     end
 
     dbg(chunk_y1)
@@ -201,11 +202,16 @@ function _update60()
    cave_roof_edge_colors[i] = dim
    cave_floor_edge_colors[i] = dim
    if helicopter_x - camera_x1 < i then
-    if helicopter_y - cave_roof[i] - i/2 < 2 then
-     cave_roof_edge_colors[i] = bright
-    end
-    if cave_floor[i] - helicopter_y - i/2 < 8 then
-     cave_floor_edge_colors[i] = bright
+    if helicopter_collision_frame == nil then
+     if helicopter_y - cave_roof[i] - i/2 < 2 then
+      cave_roof_edge_colors[i] = bright
+     end
+     if cave_floor[i] - helicopter_y - i/2 < 8 then
+      cave_floor_edge_colors[i] = bright
+     end
+    else
+     cave_roof_edge_colors[i] = dim
+     cave_floor_edge_colors[i] = dim
     end
    end
   end
@@ -369,7 +375,7 @@ function _draw()
  if draw(draw_menu) then
   camera(0, 0)
 
-  sspr(0, 65, 64, 11, 30, 48)
+  sspr(0, 64, 64, 12, 30, 48)
 
   if loop(clock_frame, 64, 2) == 0 then
    print("tap to start", 38, 64)
@@ -583,11 +589,11 @@ function mode(m)
   cave_x1 = 1
   cave_x2 = cave_x1 + 128
 
-  chunk_fn = tunnel(0, 88) + resize1(32)
+  chunk_fn = tunnel(-96, 128) + sinechunk(-256, 0.25)
   chunk_p = 0
   chunk_length = 128*camera_vx
   chunk_x1 = cave_x1
-  chunk_x2 = chunk_x1 + chunk_length
+  chunk_x2 = cave_x2
 
   cave_floor = fill(chunk_length, 118)
   cave_floor_blur_colors = fill(chunk_length, 1)
@@ -620,8 +626,8 @@ function mode(m)
   helicopter_x = 48
   helicopter_y = 80
   helicopter_vx = camera_vx
-  helicopter_vy = 0
-  helicopter_inclination = "hovering"
+  helicopter_vy = 0.5
+  helicopter_inclination = "dropping"
   helicopter_gravity = 0.1
   helicopter_min_vy = -1.5
   helicopter_max_vy = 2
@@ -706,6 +712,10 @@ end
 
 function rotor_collision()
   dbg("rotor collision")
+  if rotor_collision_frame then
+   return
+  end
+
   rotor_collision_frame = clock_frame
 
   for i = 1,32 do
