@@ -130,9 +130,9 @@ function _update60()
 
     local t = tunnel(0, cave_y2 - cave_y1 - 4)
     local r = flrrnd(8)
-    --r = 0
+    r = 0
     if r == 0 then
-     chunk_fn = t + sinechunk(16, 2) + resize1(128)
+     chunk_fn = t + sinechunk(16, 2) + resize1(128-rnd(256))
     elseif r == 1 then
      chunk_fn = t + zig(32) + resize1(32-rnd(64))
     elseif r == 2 then
@@ -316,21 +316,28 @@ function _update60()
     del(coins, coin)
    end
   end
+
   if #coins == 0 or coins[#coins].x2 < camera_x2 - 8 then
-   local x1 = cave_x1 + 8
-   local y1 = coin_height
-   if coins[#coins] then
-    x1 = coins[#coins].x1 + 16
+   if coin_cooldown_frame < coin_cooldown_limit then
+    coin_cooldown_frame += 1
+   else
+    coin_cooldown_frame = 0
+    local x1 = camera_x2 + 8
+
+    local y1 = cave_roof[136] + ((
+     cave_floor[136] - cave_roof[136]
+    ) / 2) - 4
+
+    local x2 = x1+9
+    local y2 = y1+9
+    add(coins, {
+      x1 = x1,
+      y1 = y1,
+      x2 = x2,
+      y2 = y2,
+    })
+    x1 += 64
    end
-   local x2 = x1+9
-   local y2 = y1+9
-   add(coins, {
-     x1 = x1,
-     y1 = y1,
-     x2 = x2,
-     y2 = y2,
-   })
-   x1 += 64
   end
  end
 
@@ -605,7 +612,10 @@ function mode(m)
   cave_roof_blur_heights = fill(chunk_length, 0)
   cave_roof_edge_colors = fill(chunk_length, 7)
   cave_roof_edge_heights = fill(chunk_length, 0)
+
   coin_height = 64
+  coin_cooldown_frame = clock_frame
+  coin_cooldown_limit = 32
 
   cave_y1 = cave_roof[chunk_length]
   cave_y2 = cave_floor[chunk_length]
