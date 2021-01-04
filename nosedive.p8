@@ -41,7 +41,7 @@ function _init()
  draw_enable(draw_cave)
  draw_enable(draw_helicopter)
  draw_enable(draw_rotor)
- --draw_enable(draw_hitbox)
+ draw_enable(draw_hitbox)
  draw_enable(draw_coins)
  draw_enable(draw_debris)
  draw_enable(draw_debug)
@@ -130,7 +130,10 @@ function _update60()
 
     local t = tunnel(0, cave_y2 - cave_y1 - 4)
     local r = flrrnd(8)
+
+    t = tunnel(0, 48)
     r = 0
+
     if r == 0 then
      chunk_fn = t + sinechunk(16, 2) + resize1(128-rnd(256))
     elseif r == 1 then
@@ -142,9 +145,9 @@ function _update60()
     elseif r == 4 then
      chunk_fn = t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
     elseif r == 5 then
-     chunk_fn = t + ubend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+     chunk_fn = t + ubend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256))
     elseif r == 6 then
-     chunk_fn = t + sbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+     chunk_fn = t + sbend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256))
     elseif r == 7 then
      chunk_fn = t + zbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
     end
@@ -241,30 +244,31 @@ function _update60()
    end
 
    for coin in all(coins) do
-    if coin.hit == nil
-     and (coin.x1 < x and coin.x2 > x)
-     and not (coin.y2 < hitbox_y1 or coin.y1 > hitbox_y2)
-     then
-     coin.hit = clock_frame
-     coins_count += 1
+    if coin.x1 > hitbox_x2 then
+     -- coin ahead
+    elseif coin.x2 > hitbox_x1 then
+     if coin.hit == nil
+      and (coin.x1 < x and coin.x2 > x)
+      and not (coin.y2 < hitbox_y1 or coin.y1 > hitbox_y2)
+      then
+      coin.hit = clock_frame
+      coins_count += 1
 
-     for i = 1,8 do
-      add(debris, {
-       color = choose({9,10}),
-       x = coin.x1,
-       y = coin.y1+2,
-       vx = -1+rnd(2),
-       vy = helicopter_vy + rnd(8),
-      })
+      for i = 1,8 do
+       add(debris, {
+        color = choose({9,10}),
+        x = coin.x1,
+        y = coin.y1+2,
+        vx = -1+rnd(2),
+        vy = helicopter_vy + rnd(8),
+       })
+      end
      end
 
-     if coins_count % 4 == 0 and helicopter_vx < 4 then
-      --camera_vx += 1
-      --helicopter_vx += 1
-     end
-
-     goto boom
+    elseif coin.hit == nil and coin.miss == nil then
+     coin.miss = clock_frame
     end
+
    end
 
   end
@@ -318,11 +322,11 @@ function _update60()
   end
 
   if #coins == 0 or coins[#coins].x2 < camera_x2 - 8 then
-   if coin_cooldown_frame < coin_cooldown_limit then
+   if coin_cooldown_frame <= coin_cooldown_limit then
     coin_cooldown_frame += 1
    else
     coin_cooldown_frame = 0
-    local x1 = camera_x2 + 8
+    local x1 = camera_x2 + 2
 
     local y1 = cave_roof[136] + ((
      cave_floor[136] - cave_roof[136]
@@ -475,12 +479,16 @@ end
   end
 
   for coin in all(coins) do
+   local coin_color = 11
+   if coin.miss ~= nil then
+    coin_color = 8
+   end
    rect(
     coin.x1,
     coin.y1,
     coin.x2,
     coin.y2,
-    11
+    coin_color
    )
   end
  end
@@ -581,6 +589,7 @@ function mode(m)
   draw_enable(draw_debris)
   draw_enable(draw_debug)
   draw_enable(draw_smoke)
+  draw_enable(draw_hitbox)
 
   camera_x1 = 1
   camera_y1 = 0
@@ -616,6 +625,7 @@ function mode(m)
   coin_height = 64
   coin_cooldown_frame = clock_frame
   coin_cooldown_limit = 32
+  coin_cooldown_limit = 0
 
   cave_y1 = cave_roof[chunk_length]
   cave_y2 = cave_floor[chunk_length]
