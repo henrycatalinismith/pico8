@@ -1,5 +1,5 @@
 pico-8 cartridge // http://www.pico-8.com
-version 29
+version 35
 __lua__
 -- nosedive
 -- by hen
@@ -131,11 +131,12 @@ function _update60()
     local t = tunnel(0, cave_y2 - cave_y1 - 4)
     local r = flrrnd(8)
 
-    t = tunnel(0, 48)
+    t = tunnel(0, 64)
     r = 0
 
     if r == 0 then
-     chunk_fn = t + sinechunk(16, 2) + resize1(128-rnd(256))
+     chunk_fn = tunnel(0, 128) + sinechunk(-160, 0.5)
+     --chunk_fn = t + sinechunk(16, 2) + resize1(128-rnd(256))
     elseif r == 1 then
      chunk_fn = t + zig(32) + resize1(32-rnd(64))
     elseif r == 2 then
@@ -149,7 +150,7 @@ function _update60()
     elseif r == 6 then
      chunk_fn = t + sbend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256))
     elseif r == 7 then
-     chunk_fn = t + zbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+     chunk_fn = t + zbend(32+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
     end
 
     dbg(chunk_y1)
@@ -199,26 +200,6 @@ function _update60()
    helicopter_inclination = "hovering"
   end
 
-  bright = 7
-  dim = 1
-  for i = 1, 128 do
-   cave_roof_edge_colors[i] = dim
-   cave_floor_edge_colors[i] = dim
-   if helicopter_x - camera_x1 < i then
-    if helicopter_collision_frame == nil then
-     if helicopter_y - cave_roof[i] - i/2 < 2 then
-      cave_roof_edge_colors[i] = bright
-     end
-     if cave_floor[i] - helicopter_y - i/2 < 8 then
-      cave_floor_edge_colors[i] = bright
-     end
-    else
-     cave_roof_edge_colors[i] = dim
-     cave_floor_edge_colors[i] = dim
-    end
-   end
-  end
-
  end
 
  if update(update_hitbox) then
@@ -254,13 +235,13 @@ function _update60()
       coin.hit = clock_frame
       coins_count += 1
 
-      for i = 1,8 do
+      for i = 1,64 do
        add(debris, {
         color = choose({9,10}),
         x = coin.x1,
         y = coin.y1+2,
-        vx = -1+rnd(2),
-        vy = helicopter_vy + rnd(8),
+        vx = -2+rnd(4),
+        vy = helicopter_vy + rnd(8) * (rnd(2) - 1),
        })
       end
      end
@@ -347,11 +328,11 @@ function _update60()
 
  if update(update_smoke) then
   if helicopter_collision_frame == nil and clock_frame % 4 == 0 then
-   local radius = 0
+   local radius = 1
    if rotor_collision_frame then
     radius = 2
    elseif rotor_engaged then
-    radius = 1
+    radius = 4 - rnd(2)
    end
    add(smoke, {
     x = helicopter_x - 8,
@@ -407,6 +388,28 @@ function _draw()
  end
 
  if draw(draw_cave) then
+
+
+  bright = 7
+  dim = 1
+  for i = 1, 128 do
+   cave_roof_edge_colors[i] = dim
+   cave_floor_edge_colors[i] = dim
+   if helicopter_x - camera_x1 < i then
+    if helicopter_collision_frame == nil then
+     if helicopter_y - cave_roof[i] - i/2 < 2 then
+      cave_roof_edge_colors[i] = bright
+     end
+     if cave_floor[i] - helicopter_y - i/2 < 8 then
+      cave_floor_edge_colors[i] = bright
+     end
+    else
+     cave_roof_edge_colors[i] = dim
+     cave_floor_edge_colors[i] = dim
+    end
+   end
+  end
+
   for i = 1,128 do
    local x = camera_x1 + i
    local roof = cave_roof[i]
@@ -505,7 +508,7 @@ end
 
  if draw(draw_smoke) then
   for i, puff in pairs(smoke) do
-   circ(puff.x, puff.y, r, 5)
+   circ(puff.x, puff.y, puff.radius, 5)
   end
  end
 
@@ -625,7 +628,6 @@ function mode(m)
   coin_height = 64
   coin_cooldown_frame = clock_frame
   coin_cooldown_limit = 32
-  coin_cooldown_limit = 0
 
   cave_y1 = cave_roof[chunk_length]
   cave_y2 = cave_floor[chunk_length]
@@ -671,6 +673,7 @@ function mode(m)
   update_enable(update_dead)
   update_enable(update_debris)
   update_enable(update_smoke)
+  update_enable(update_camera)
 
   draw_enable(draw_dead)
   draw_enable(draw_cave)
@@ -777,6 +780,7 @@ function helicopter_collision()
  rotor_vy = 0
  helicopter_vy = 0
  helicopter_vx = 0
+ camera_vx = 0
 
  mode("dead")
 end
