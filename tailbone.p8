@@ -655,7 +655,7 @@ function _draw()
     end
   end
   if mode == 'play' and (alive == true or frame-died<60) then
-    printr(n, score_x, 8, score_colors)
+    -- printr(n, score_x, 8, score_colors)
   end
 
   if mode=='play' and alive == true then

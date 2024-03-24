@@ -1,9 +1,6 @@
 pico-8 cartridge // http://www.pico-8.com
 version 35
 __lua__
--- nosedive
--- by hen
-
 function _init()
  update_mode = 0
  update_camera = 1
@@ -119,6 +116,8 @@ function _update60()
     chunk_p = (cave_x2 - chunk_x1) / chunk_length
    elseif cave_x2 == chunk_x2 then
     chunk_p = 1
+    -- camera_vx += 1
+    -- helicopter_vx += 1
     dbg("last" .. cave_x2)
    else
     dbg("nxtchunk " .. chunk_x2 .. ":" .. cave_x2 .. ", " .. cave_y2 - cave_y1)
@@ -132,17 +131,17 @@ function _update60()
     local r = flrrnd(8)
 
     t = tunnel(0, 64)
-    r = 0
 
     if r == 0 then
-     chunk_fn = tunnel(0, 128) + sinechunk(-160, 0.5)
-     --chunk_fn = t + sinechunk(16, 2) + resize1(128-rnd(256))
+     chunk_fn = tunnel(0, 128) + sinechunk(16, 0.5)
+    --  chunk_fn = tunnel(0, 128) + sinechunk(-160, 0.5)
+     -- chunk_fn = t + sinechunk(16, 2) + resize1(128-rnd(256))
     elseif r == 1 then
      chunk_fn = t + zig(32) + resize1(32-rnd(64))
     elseif r == 2 then
      chunk_fn = t + zag(32) + resize1(32-rnd(64))
     elseif r == 3 then
-     chunk_fn = t + zigzag(32) + resize1(32-rnd(64))
+     chunk_fn = t + zigzag(32) + resize1(128)
     elseif r == 4 then
      chunk_fn = t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
     elseif r == 5 then
@@ -321,7 +320,7 @@ function _update60()
       x2 = x2,
       y2 = y2,
     })
-    x1 += 64
+    x1 += 128
    end
   end
  end
