@@ -117,7 +117,7 @@ function _update60()
     chunk_p = 0
     chunk_x1 = cave_x2
     chunk_x2 = chunk_x1 + chunk_length
-    chunk_y1 = cave_get(cave_roof, chunk_length)
+    chunk_y1 = cave_y1
 
     local t = tunnel(0, cave_y2 - cave_y1 - 4)
     local r = flrrnd(8)
