@@ -69,10 +69,10 @@ function _update60()
    camera_ideal_y1 = helicopter_y-64
   else
    camera_ideal_y1 = avg({
-    cave_roof[32] + 1,
-    cave_floor[32],
-    cave_roof[96] + 1,
-    cave_floor[96],
+    cave_get(cave_roof, 32) + 1,
+    cave_get(cave_floor, 32),
+    cave_get(cave_roof, 96) + 1,
+    cave_get(cave_floor, 96),
    }) - 64
   end
 
@@ -99,15 +99,7 @@ function _update60()
 
  if update(update_cave) then
   for i = 1,camera_vx do
-   for j = 1, chunk_length-1 do
-    cave_floor[j] = cave_floor[j+1]
-    cave_roof[j] = cave_roof[j+1]
-
-    cave_floor_blur_heights[j] = cave_floor_blur_heights[j+1]
-    cave_floor_edge_heights[j] = cave_floor_edge_heights[j+1]
-    cave_roof_blur_heights[j] = cave_roof_blur_heights[j+1]
-    cave_roof_edge_heights[j] = cave_roof_edge_heights[j+1]
-   end
+   cave_head = (cave_head % chunk_length) + 1
 
    cave_x1 += 1
    cave_x2 = cave_x1 + 128
@@ -125,7 +117,7 @@ function _update60()
     chunk_p = 0
     chunk_x1 = cave_x2
     chunk_x2 = chunk_x1 + chunk_length
-    chunk_y1 = cave_roof[#cave_roof]
+    chunk_y1 = cave_get(cave_roof, chunk_length)
 
     local t = tunnel(0, cave_y2 - cave_y1 - 4)
     local r = flrrnd(8)
@@ -162,11 +154,11 @@ function _update60()
     chunk_y1 + next_slice[1],
     chunk_y1 + next_slice[2]
    )
-   cave_y1 = cave_roof[#cave_roof]
-   cave_y2 = cave_floor[#cave_floor]
+   cave_y1 = cave_get(cave_roof, chunk_length)
+   cave_y2 = cave_get(cave_floor, chunk_length)
    cave_height = cave_y2 - cave_y1
-   coin_height = cave_roof[128] + ((
-    cave_floor[128] - cave_roof[128]
+   coin_height = cave_get(cave_roof, 128) + ((
+    cave_get(cave_floor, 128) - cave_get(cave_roof, 128)
    ) / 2) - 4
   end
  end
@@ -209,15 +201,15 @@ function _update60()
 
   for x = hitbox_x1,hitbox_x2 do
    local i = x-camera_x1
-   local roof = cave_roof[i]
-   local floor = cave_floor[i]
+   local roof = cave_get(cave_roof, i)
+   local floor = cave_get(cave_floor, i)
    for y = hitbox_y1,hitbox_y2 do
     local i = flr(x) - camera_x1
-    if y < cave_roof[i] then
+    if y < cave_get(cave_roof, i) then
      rotor_collision()
      goto boom
     end
-    if y > cave_floor[i] then
+    if y > cave_get(cave_floor, i) then
      helicopter_collision()
      goto boom
     end
@@ -276,11 +268,11 @@ function _update60()
    local i = flr(d.x) - camera_x1
    if i > 128 or i < 1 then
     -- ignore out of screen debris
-   elseif d.y + flr(d.vy) < cave_roof[i] then
+   elseif d.y + flr(d.vy) < cave_get(cave_roof, i) then
     -- debris hits roof
     d.vy *= rnd(0.5) * - 1
     d.vx = rnd(0.2)
-   elseif d.y + flr(d.vy) > cave_floor[i] then
+   elseif d.y + flr(d.vy) > cave_get(cave_floor, i) then
     -- debris hits floor
     d.vy *= rnd(0.3) * - 1
     d.vx = rnd(0.2)
@@ -308,8 +300,8 @@ function _update60()
     coin_cooldown_frame = 0
     local x1 = camera_x2 + 2
 
-    local y1 = cave_roof[136] + ((
-     cave_floor[136] - cave_roof[136]
+    local y1 = cave_get(cave_roof, 136) + ((
+     cave_get(cave_floor, 136) - cave_get(cave_roof, 136)
     ) / 2) - 4
 
     local x2 = x1+9
@@ -396,10 +388,10 @@ function _draw()
    cave_floor_edge_colors[i] = dim
    if helicopter_x - camera_x1 < i then
     if helicopter_collision_frame == nil then
-     if helicopter_y - cave_roof[i] - i/2 < 2 then
+     if helicopter_y - cave_get(cave_roof, i) - i/2 < 2 then
       cave_roof_edge_colors[i] = bright
      end
-     if cave_floor[i] - helicopter_y - i/2 < 8 then
+     if cave_get(cave_floor, i) - helicopter_y - i/2 < 8 then
       cave_floor_edge_colors[i] = bright
      end
     else
@@ -411,14 +403,14 @@ function _draw()
 
   for i = 1,128 do
    local x = camera_x1 + i
-   local roof = cave_roof[i]
-   local floor = cave_floor[i]
+   local roof = cave_get(cave_roof, i)
+   local floor = cave_get(cave_floor, i)
    line(x, camera_y1, x, roof, 5)
-   line(x, roof, x, roof - cave_roof_blur_heights[i], cave_roof_blur_colors[i])
-   line(x, roof, x, roof - cave_roof_edge_heights[i], cave_roof_edge_colors[i])
+   line(x, roof, x, roof - cave_get(cave_roof_blur_heights, i), cave_roof_blur_colors[i])
+   line(x, roof, x, roof - cave_get(cave_roof_edge_heights, i), cave_roof_edge_colors[i])
    line(x, floor, x, camera_y2, 5)
-   line(x, floor, x, floor + cave_floor_blur_heights[i], cave_floor_blur_colors[i])
-   line(x, floor, x, floor + cave_floor_edge_heights[i], cave_floor_edge_colors[i])
+   line(x, floor, x, floor + cave_get(cave_floor_blur_heights, i), cave_floor_blur_colors[i])
+   line(x, floor, x, floor + cave_get(cave_floor_edge_heights, i), cave_floor_edge_colors[i])
   end
  end
 
@@ -476,8 +468,8 @@ end
 
   for x = hitbox_x1,hitbox_x2 do
    local i = x-camera_x1
-   pset(x, cave_floor[i], 11)
-   pset(x, cave_roof[i], 11)
+   pset(x, cave_get(cave_floor, i), 11)
+   pset(x, cave_get(cave_roof, i), 11)
   end
 
   for coin in all(coins) do
@@ -527,43 +519,43 @@ end
 end
 
 function add_cave(ci, new_roof, new_floor)
- cave_roof[ci] = new_roof
- cave_floor[ci] = new_floor
+ cave_set(cave_roof, ci, new_roof)
+ cave_set(cave_floor, ci, new_floor)
 
  local from = max(1, ci - 4)
  local to = min(chunk_length-1, ci + 4)
 
  for i = from, to do
-  local roof = cave_roof[i]
-  local floor = cave_floor[i]
+  local roof = cave_get(cave_roof, i)
+  local floor = cave_get(cave_floor, i)
 
-  cave_floor_blur_heights[i] = tminmax(max, {
+  cave_set(cave_floor_blur_heights, i, tminmax(max, {
    floor,
-   tgad(cave_floor, i - 1, 1, floor + 2),
-   tgad(cave_floor, i - 2, 1, floor + 2),
-   tgad(cave_floor, i + 1, 1, floor + 2),
-   tgad(cave_floor, i + 2, 1, floor + 2),
-  }) - floor
+   tgad_cave(cave_floor, i - 1, 1, floor + 2),
+   tgad_cave(cave_floor, i - 2, 1, floor + 2),
+   tgad_cave(cave_floor, i + 1, 1, floor + 2),
+   tgad_cave(cave_floor, i + 2, 1, floor + 2),
+  }) - floor)
 
-  cave_floor_edge_heights[i] = tminmax(max, {
+  cave_set(cave_floor_edge_heights, i, tminmax(max, {
    floor,
-   tgad(cave_floor, i - 1, 0, floor),
-   tgad(cave_floor, i + 1, 0, floor),
-  }) - floor
+   tgad_cave(cave_floor, i - 1, 0, floor),
+   tgad_cave(cave_floor, i + 1, 0, floor),
+  }) - floor)
 
-  cave_roof_blur_heights[i] = roof - tminmax(min, {
+  cave_set(cave_roof_blur_heights, i, roof - tminmax(min, {
    roof,
-   tgad(cave_roof, i - 1, -1, roof),
-   tgad(cave_roof, i - 2, -1, roof),
-   tgad(cave_roof, i + 1, -1, roof),
-   tgad(cave_roof, i + 2, -1, roof),
-  })
+   tgad_cave(cave_roof, i - 1, -1, roof),
+   tgad_cave(cave_roof, i - 2, -1, roof),
+   tgad_cave(cave_roof, i + 1, -1, roof),
+   tgad_cave(cave_roof, i + 2, -1, roof),
+  }))
 
-  cave_roof_edge_heights[i] = roof - tminmax(min, {
+  cave_set(cave_roof_edge_heights, i, roof - tminmax(min, {
    roof,
-   tgad(cave_roof, i - 1, 0, roof),
-   tgad(cave_roof, i + 1, 0, roof),
-  })
+   tgad_cave(cave_roof, i - 1, 0, roof),
+   tgad_cave(cave_roof, i + 1, 0, roof),
+  }))
  end
 end
 
@@ -607,7 +599,8 @@ function mode(m)
   cave_x1 = 1
   cave_x2 = cave_x1 + 128
 
-  chunk_fn = tunnel(-96, 128) + sinechunk(-256, 0.25)
+  -- chunk_fn = tunnel(-96, 128) + sinechunk(-256, 0.25)
+  chunk_fn = tunnel(0, 128)
   chunk_p = 0
   chunk_length = 128*camera_vx
   chunk_x1 = cave_x1
@@ -621,22 +614,24 @@ function mode(m)
   cave_roof = fill(chunk_length, 8)
   cave_roof_blur_colors = fill(chunk_length, 1)
   cave_roof_blur_heights = fill(chunk_length, 0)
-  cave_roof_edge_colors = fill(chunk_length, 7)
-  cave_roof_edge_heights = fill(chunk_length, 0)
+   cave_roof_edge_colors = fill(chunk_length, 7)
+   cave_roof_edge_heights = fill(chunk_length, 0)
 
-  coin_height = 64
+   cave_head = 1
+
+   coin_height = 64
   coin_cooldown_frame = clock_frame
   coin_cooldown_limit = 32
 
-  cave_y1 = cave_roof[chunk_length]
-  cave_y2 = cave_floor[chunk_length]
+  cave_y1 = cave_get(cave_roof, chunk_length)
+  cave_y2 = cave_get(cave_floor, chunk_length)
 
   for x = 1,chunk_length do
    local slice = chunk_fn(x/chunk_length)
    add_cave(x, slice[1], slice[2])
   end
 
-  chunk_y1 = cave_roof[#cave_roof]
+   chunk_y1 = cave_get(cave_roof, chunk_length)
 
   coins = {}
   coins_count = 0
@@ -691,6 +686,19 @@ function tgad(t, g, a, d)
  end
 end
 
+-- tgad for circular buffer cave arrays
+function tgad_cave(t, g, a, d)
+ if g < 1 or g > chunk_length then
+  return d
+ end
+ local v = cave_get(t, g)
+ if v == nil then
+  return d
+ else
+  return v + a
+ end
+end
+
 function tminmax(fn, t)
  if #t == 0 then
   return nil
@@ -723,10 +731,10 @@ function is_space(x, y)
  if i > 128 or i < 1 then
   return true
  end
- if y < cave_roof[i] then
+ if y < cave_get(cave_roof, i) then
   return false
  end
- if y > cave_floor[i] then
+ if y > cave_get(cave_floor, i) then
   return false
  end
  return true
@@ -1175,6 +1183,14 @@ function draw_bar(l, p, x, y)
  line(x+1, y+1, x+14*p, y+1, 7)
  rect(x, y, x+15, y+2, 1)
  print(l, x+17, y-1, 7)
+end
+
+function cave_get(t, i)
+ return t[((cave_head + i - 2) % chunk_length) + 1]
+end
+
+function cave_set(t, i, v)
+ t[((cave_head + i - 2) % chunk_length) + 1] = v
 end
 
 __gfx__
