@@ -91,32 +91,26 @@ function _update60()
    * -1
   )
 
-  camera_x1 += camera_vx
   camera_y1 += camera_vy
-  camera_x2 = camera_x1 + 128
   camera_y2 = camera_y1 + 128
  end
 
  if update(update_cave) then
-  for i = 1,camera_vx do
+  for i = 1,cave_vx do
    cave_head = (cave_head % chunk_length) + 1
 
-   cave_x1 += 1
-   cave_x2 = cave_x1 + 128
+   chunk_progress += 1
 
-   if cave_x2 < chunk_x2 then
-    chunk_p = (cave_x2 - chunk_x1) / chunk_length
-   elseif cave_x2 == chunk_x2 then
+   if chunk_progress < chunk_length then
+    chunk_p = chunk_progress / chunk_length
+   elseif chunk_progress == chunk_length then
     chunk_p = 1
-    -- camera_vx += 1
-    -- helicopter_vx += 1
-    dbg("last" .. cave_x2)
+    dbg("last chunk_progress=" .. chunk_progress)
    else
-    dbg("nxtchunk " .. chunk_x2 .. ":" .. cave_x2 .. ", " .. cave_y2 - cave_y1)
+    dbg("nxtchunk " .. chunk_progress .. ", " .. cave_y2 - cave_y1)
 
+    chunk_progress = 0
     chunk_p = 0
-    chunk_x1 = cave_x2
-    chunk_x2 = chunk_x1 + chunk_length
     chunk_y1 = cave_y1
 
     chunk_fn = biome.chunk()
@@ -161,7 +155,6 @@ function _update60()
    helicopter_vy,
    helicopter_max_vy
   )
-  helicopter_x += helicopter_vx
   helicopter_y += helicopter_vy
 
   if helicopter_vy > 0 and not rotor_engaged then
@@ -181,11 +174,11 @@ function _update60()
   hitbox_y2 = hitbox_y1 + 6
 
   for x = hitbox_x1,hitbox_x2 do
-   local i = x-camera_x1
+   local i = x
    local roof = cave_get(cave_roof, i)
    local floor = cave_get(cave_floor, i)
    for y = hitbox_y1,hitbox_y2 do
-    local i = flr(x) - camera_x1
+    local i = flr(x)
     if y < cave_get(cave_roof, i) then
      rotor_collision()
      goto boom
@@ -230,7 +223,8 @@ function _update60()
 
  if update(update_debris) then
   for d in all(debris) do
-   if d.x <= camera_x1 or d.x >= camera_x2 then
+   d.x -= cave_vx
+   if d.x <= 0 or d.x >= 128 then
     del(debris, d)
     goto continue_debris
    end
@@ -246,7 +240,7 @@ function _update60()
     d.vy = 0
    end
 
-   local i = flr(d.x) - camera_x1
+   local i = flr(d.x)
    if i > 128 or i < 1 then
     -- ignore out of screen debris
    elseif d.y + flr(d.vy) < cave_get(cave_roof, i) then
@@ -268,18 +262,20 @@ function _update60()
 
  if update(update_coins) then
   for coin in all(coins) do
-   if coin.x2 < camera_x1
+   coin.x1 -= cave_vx
+   coin.x2 -= cave_vx
+   if coin.x2 < 0
     or coin.hit and clock_frame - coin.hit > 16 then
     del(coins, coin)
    end
   end
 
-  if #coins == 0 or coins[#coins].x2 < camera_x2 - 8 then
+  if #coins == 0 or coins[#coins].x2 < 120 then
    if coin_cooldown_frame <= coin_cooldown_limit then
     coin_cooldown_frame += 1
    else
     coin_cooldown_frame = 0
-    local x1 = camera_x2 + 2
+    local x1 = 130
 
     local y1 = cave_get(cave_roof, 136) + ((
      cave_get(cave_floor, 136) - cave_get(cave_roof, 136)
@@ -293,7 +289,6 @@ function _update60()
       x2 = x2,
       y2 = y2,
     })
-    x1 += 128
    end
   end
  end
@@ -309,7 +304,7 @@ function _update60()
    add(smoke, {
     x = helicopter_x - 8,
     y = helicopter_y,
-    vx = helicopter_vx,
+    vx = 0,
     vy = helicopter_vy,
     radius = radius,
     age = 0,
@@ -317,13 +312,14 @@ function _update60()
   end
 
   for i, puff in pairs(smoke) do
+   puff.x -= cave_vx
    puff.x += puff.vx / 16
    puff.y += puff.vy / 8
    puff.age += 1
    if puff.age % 20 == 0 then
     puff.radius -= 1
    end
-   if puff.radius < 0 then
+   if puff.radius < 0 or puff.x < 0 then
     del(smoke, puff)
    end
   end
@@ -367,7 +363,7 @@ function _draw()
   for i = 1, 128 do
    cave_roof_edge_colors[i] = dim
    cave_floor_edge_colors[i] = dim
-   if helicopter_x - camera_x1 < i then
+   if helicopter_x < i then
     if helicopter_collision_frame == nil then
      if helicopter_y - cave_get(cave_roof, i) - i/2 < 2 then
       cave_roof_edge_colors[i] = bright
@@ -383,7 +379,7 @@ function _draw()
   end
 
   for i = 1,128 do
-   local x = camera_x1 + i
+   local x = i
    local roof = cave_get(cave_roof, i)
    local floor = cave_get(cave_floor, i)
    line(x, camera_y1, x, roof, 5)
@@ -448,7 +444,7 @@ end
   )
 
   for x = hitbox_x1,hitbox_x2 do
-   local i = x-camera_x1
+   local i = x
    pset(x, cave_get(cave_floor, i), 11)
    pset(x, cave_get(cave_roof, i), 11)
   end
@@ -566,26 +562,20 @@ function mode(m)
   draw_enable(draw_smoke)
   draw_enable(draw_hitbox)
 
-  camera_x1 = 1
+  camera_x1 = 0
   camera_y1 = 0
-  camera_x2 = camera_x1 + 128
   camera_y2 = camera_y1 + 128
-  camera_vx = 1
+  cave_vx = 2
   camera_vy = 0
   camera_ideal_y1 = camera_y1
   camera_error_y1 = 0
   camera_offset_y1 = 0
   camera_error_count = -1
 
-  cave_x1 = 1
-  cave_x2 = cave_x1 + 128
-
-  -- chunk_fn = tunnel(-96, 128) + sinechunk(-256, 0.25)
   chunk_fn = tunnel(0, 128)
   chunk_p = 0
-  chunk_length = 128*camera_vx
-  chunk_x1 = cave_x1
-  chunk_x2 = cave_x2
+  chunk_length = 128 * cave_vx
+  chunk_progress = 0
 
   biome = biome_rooms()
 
@@ -624,7 +614,6 @@ function mode(m)
 
   helicopter_x = 48
   helicopter_y = 80
-  helicopter_vx = camera_vx
   helicopter_vy = 0.5
   helicopter_inclination = "dropping"
   helicopter_gravity = 0.1
@@ -710,7 +699,7 @@ function nearest(t, n)
 end
 
 function is_space(x, y)
- local i = flr(x) - camera_x1
+ local i = flr(x)
  if i > 128 or i < 1 then
   return true
  end
@@ -736,7 +725,7 @@ function rotor_collision()
     color = choose({0,0,0,0,0,0,0,0,0,5,6,6,7,11}),
     x = helicopter_x,
     y = helicopter_y + 4,
-    vx = helicopter_vx*-1 + rnd(helicopter_vx*4),
+    vx = -2 + rnd(4),
     vy = 0 - rnd(2),
    })
   end
@@ -761,7 +750,7 @@ function helicopter_collision()
    color = choose({3,4,11}),
    x = helicopter_x,
    y = helicopter_y,
-   vx = helicopter_vx + (-1+rnd(2)),
+   vx = -1 + rnd(2),
    vy = 0 - rnd(2),
   })
  end
@@ -769,8 +758,7 @@ function helicopter_collision()
  rotor_engaged = false
  rotor_vy = 0
  helicopter_vy = 0
- helicopter_vx = 0
- camera_vx = 0
+ cave_vx = 0
 
  mode("dead")
 end
