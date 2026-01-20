@@ -762,6 +762,8 @@ function helicopter_collision()
  camera_shake_intensity = 10
  camera_shake_decay = 0.85
 
+ helicopter_y = min(helicopter_y, cave_get(cave_floor, helicopter_x) - 2)
+
  for i = 1,128 do
   add(debris, {
    color = choose({3,4,11}),
