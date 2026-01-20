@@ -45,6 +45,10 @@ function _init()
  draw_enable(draw_smoke)
 
  clock_frame = 0
+ camera_shake_intensity = 0
+ camera_shake_decay = 0.7
+ camera_x1 = 0
+ camera_y1 = 0
  mode("menu")
 end
 
@@ -199,6 +203,8 @@ function _update60()
       then
       coin.hit = clock_frame
       coins_count += 1
+      camera_shake_intensity = 5
+      camera_shake_decay = 0.6
 
       for i = 1,64 do
        add(debris, {
@@ -328,7 +334,13 @@ function _update60()
 end
 
 function _draw()
- camera(camera_x1, camera_y1)
+ local camera_shake_x = rnd(camera_shake_intensity) - camera_shake_intensity/2
+ local camera_shake_y = rnd(camera_shake_intensity) - camera_shake_intensity/2
+ camera(camera_x1 + camera_shake_x, camera_y1 + camera_shake_y)
+ camera_shake_intensity *= camera_shake_decay
+ if camera_shake_intensity < 0.1 then
+  camera_shake_intensity = 0
+ end
 
  cls(0)
 
@@ -565,6 +577,7 @@ function mode(m)
   camera_x1 = 0
   camera_y1 = 0
   camera_y2 = camera_y1 + 128
+  camera_shake = 0
   cave_vx = 2
   camera_vy = 0
   camera_ideal_y1 = camera_y1
@@ -719,6 +732,8 @@ function rotor_collision()
   end
 
   rotor_collision_frame = clock_frame
+  camera_shake_intensity = 6
+  camera_shake_decay = 0.7
 
   for i = 1,32 do
    add(debris, {
@@ -744,6 +759,8 @@ end
 function helicopter_collision()
  dbg("helicopter collision")
  helicopter_collision_frame = clock_frame
+ camera_shake_intensity = 10
+ camera_shake_decay = 0.85
 
  for i = 1,128 do
   add(debris, {
