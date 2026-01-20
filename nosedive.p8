@@ -119,29 +119,10 @@ function _update60()
     chunk_x2 = chunk_x1 + chunk_length
     chunk_y1 = cave_y1
 
-    local t = tunnel(0, cave_y2 - cave_y1 - 4)
-    local r = flrrnd(8)
-
-    t = tunnel(0, 64)
-
-    if r == 0 then
-     chunk_fn = tunnel(0, 128) + sinechunk(16, 0.5)
-    --  chunk_fn = tunnel(0, 128) + sinechunk(-160, 0.5)
-     -- chunk_fn = t + sinechunk(16, 2) + resize1(128-rnd(256))
-    elseif r == 1 then
-     chunk_fn = t + zig(32) + resize1(32-rnd(64))
-    elseif r == 2 then
-     chunk_fn = t + zag(32) + resize1(32-rnd(64))
-    elseif r == 3 then
-     chunk_fn = t + zigzag(32) + resize1(128)
-    elseif r == 4 then
-     chunk_fn = t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
-    elseif r == 5 then
-     chunk_fn = t + ubend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256))
-    elseif r == 6 then
-     chunk_fn = t + sbend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256))
-    elseif r == 7 then
-     chunk_fn = t + zbend(32+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+    chunk_fn = biome.chunk()
+    if chunk_fn == nil then
+     biome = next_biome()
+     chunk_fn = biome.chunk()
     end
 
     dbg(chunk_y1)
@@ -589,7 +570,7 @@ function mode(m)
   camera_y1 = 0
   camera_x2 = camera_x1 + 128
   camera_y2 = camera_y1 + 128
-  camera_vx = 2
+  camera_vx = 1
   camera_vy = 0
   camera_ideal_y1 = camera_y1
   camera_error_y1 = 0
@@ -605,6 +586,8 @@ function mode(m)
   chunk_length = 128*camera_vx
   chunk_x1 = cave_x1
   chunk_x2 = cave_x2
+
+  biome = biome_rooms()
 
   cave_floor = fill(chunk_length, 118)
   cave_floor_blur_colors = fill(chunk_length, 1)
@@ -1138,10 +1121,76 @@ function sinechunk(m, f)
  )
 end
 
+function roomchunk(pinch_gap, room_width)
+ local expansion = (room_width - pinch_gap) / 2
+ return chunk(
+  cosinewave(expansion/2, 1) + static(-expansion/2),
+  cosinewave(-expansion/2, 1) + static(pinch_gap + expansion/2)
+ )
+end
+
+function biome_rooms()
+ local remaining = 4
+ return {
+  id = "rooms",
+  chunk = function()
+   if remaining <= 0 then return nil end
+   remaining -= 1
+   return roomchunk(32, 120)
+  end
+ }
+end
+
+function biome_normal()
+ local remaining = 4
+ return {
+  id = "normal",
+  chunk = function()
+   if remaining <= 0 then return nil end
+   remaining -= 1
+   local t = tunnel(0, 64)
+   local r = flrrnd(8)
+   if r == 0 then
+    return tunnel(0, 128) + sinechunk(16, 0.5)
+   elseif r == 1 then
+    return t + zig(32) + resize1(32-rnd(64))
+   elseif r == 2 then
+    return t + zag(32) + resize1(32-rnd(64))
+   elseif r == 3 then
+    return t + zigzag(32) + resize1(128)
+   elseif r == 4 then
+    return t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+   elseif r == 5 then
+    return t + ubend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256))
+   elseif r == 6 then
+    return t + sbend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256))
+   elseif r == 7 then
+    return t + zbend(32+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+   end
+  end
+ }
+end
+
+function next_biome()
+ if biome.id == "rooms" then
+  return biome_normal()
+ else
+  return biome_rooms()
+ end
+end
+
 function sinewave(magnitude, frequency)
  return terrain(
   function(p)
    return sin(p * frequency) * magnitude
+  end
+ )
+end
+
+function cosinewave(magnitude, frequency)
+ return terrain(
+  function(p)
+   return cos(p * frequency) * magnitude
   end
  )
 end
