@@ -684,19 +684,23 @@ function mode(m)
   camera_offset_y1 = 0
   camera_error_count = -1
 
-  chunk_fn = tunnel(0, 128)
   chunk_p = 0
   chunk_length = 128 * cave_vx
   chunk_progress = 0
 
-  biome_rooms()
+  biome_start()
+  chunk_fn = biome_next_chunk()
 
-  cave_floor = fill(chunk_length, 118)
+  local start_slice = chunk_fn(0)
+  local start_roof = start_slice[1]
+  local start_floor = start_slice[2]
+
+  cave_floor = fill(chunk_length, start_floor)
   cave_floor_blur_colors = fill(chunk_length, 1)
   cave_floor_blur_heights = fill(chunk_length, 0)
   cave_floor_edge_colors = fill(chunk_length, 7)
   cave_floor_edge_heights = fill(chunk_length, 0)
-  cave_roof = fill(chunk_length, 8)
+  cave_roof = fill(chunk_length, start_roof)
   cave_roof_blur_colors = fill(chunk_length, 1)
   cave_roof_blur_heights = fill(chunk_length, 0)
   cave_roof_edge_colors = fill(chunk_length, 7)
@@ -711,19 +715,18 @@ function mode(m)
 
   cave_head = 1
 
-   coin_height = 64
+  coin_height = 64
   coin_cooldown_frame = clock_frame
   coin_cooldown_limit = 32
-
-  cave_y1 = cave_get(cave_roof, chunk_length)
-  cave_y2 = cave_get(cave_floor, chunk_length)
 
   for x = 1,chunk_length do
    local slice = chunk_fn(x/chunk_length)
    add_cave(x, slice[1], slice[2], slice[3], slice[4])
   end
 
-   chunk_y1 = cave_get(cave_roof, chunk_length)
+  cave_y1 = cave_get(cave_roof, chunk_length)
+  cave_y2 = cave_get(cave_floor, chunk_length)
+  chunk_y1 = cave_y1
 
   coins = {}
   coins_count = 0
@@ -1308,6 +1311,16 @@ function rock(p_center, width, height, offset_y, shape)
  )
 end
 
+function biome_start()
+ local remaining = 1
+ biome_id = "start"
+ biome_next_chunk = function()
+  if remaining <= 0 then return nil end
+  remaining -= 1
+  return tunnel(0, 110)
+ end
+end
+
 function biome_rooms()
  local remaining = 1
  biome_id = "rooms"
@@ -1349,7 +1362,9 @@ function biome_normal()
 end
 
 function next_biome()
- if biome_id == "rooms" then
+ if biome_id == "start" then
+  biome_rooms()
+ elseif biome_id == "rooms" then
   biome_normal()
  else
   biome_rooms()
