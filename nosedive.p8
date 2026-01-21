@@ -131,7 +131,9 @@ function _update60()
    add_cave(
     chunk_length,
     chunk_y1 + next_slice[1],
-    chunk_y1 + next_slice[2]
+    chunk_y1 + next_slice[2],
+    next_slice[3],
+    next_slice[4]
    )
    cave_y1 = cave_get(cave_roof, chunk_length)
    cave_y2 = cave_get(cave_floor, chunk_length)
@@ -181,6 +183,8 @@ function _update60()
    local i = x
    local roof = cave_get(cave_roof, i)
    local floor = cave_get(cave_floor, i)
+   local rock_top = cave_get(cave_rock_top, i)
+   local rock_bottom = cave_get(cave_rock_bottom, i)
    for y = hitbox_y1,hitbox_y2 do
     local i = flr(x)
     if y < cave_get(cave_roof, i) then
@@ -190,6 +194,16 @@ function _update60()
     if y > cave_get(cave_floor, i) then
      helicopter_collision()
      goto boom
+    end
+    if rock_top ~= nil and rock_bottom ~= nil then
+     if y >= rock_top and y <= rock_bottom then
+      if y < helicopter_y - 2 then
+       rotor_collision()
+      else
+       helicopter_collision()
+      end
+      goto boom
+     end
     end
    end
 
@@ -400,6 +414,34 @@ function _draw()
    line(x, floor, x, camera_y2, 5)
    line(x, floor, x, floor + cave_get(cave_floor_blur_heights, i), cave_floor_blur_colors[i])
    line(x, floor, x, floor + cave_get(cave_floor_edge_heights, i), cave_floor_edge_colors[i])
+
+   local rock_top = cave_get(cave_rock_top, i)
+   local rock_bottom = cave_get(cave_rock_bottom, i)
+   if rock_top ~= nil and rock_bottom ~= nil then
+    line(x, rock_top, x, rock_bottom, 5)
+
+    local rock_top_blur = cave_get(cave_rock_top_blur_heights, i)
+    local rock_top_edge = cave_get(cave_rock_top_edge_heights, i)
+    line(x, rock_top, x, rock_top - rock_top_blur, 1)
+
+    local rock_bottom_blur = cave_get(cave_rock_bottom_blur_heights, i)
+    local rock_bottom_edge = cave_get(cave_rock_bottom_edge_heights, i)
+    line(x, rock_bottom, x, rock_bottom + rock_bottom_blur, 1)
+
+    if helicopter_x < i and helicopter_collision_frame == nil then
+     local rock_top_edge_color = 1
+     if helicopter_y - rock_top - i/2 < 8 then
+      rock_top_edge_color = 7
+     end
+     line(x, rock_top, x, rock_top - rock_top_edge, rock_top_edge_color)
+
+     local rock_bottom_edge_color = 1
+     if rock_bottom - helicopter_y - i/2 < 8 then
+      rock_bottom_edge_color = 7
+     end
+     line(x, rock_bottom, x, rock_bottom + rock_bottom_edge, rock_bottom_edge_color)
+    end
+   end
   end
  end
 
@@ -459,6 +501,12 @@ end
    local i = x
    pset(x, cave_get(cave_floor, i), 11)
    pset(x, cave_get(cave_roof, i), 11)
+   local rock_top = cave_get(cave_rock_top, i)
+   local rock_bottom = cave_get(cave_rock_bottom, i)
+   if rock_top ~= nil and rock_bottom ~= nil then
+    pset(x, rock_top, 11)
+    pset(x, rock_bottom, 11)
+   end
   end
 
   for coin in all(coins) do
@@ -507,9 +555,21 @@ end
  end
 end
 
-function add_cave(ci, new_roof, new_floor)
+function add_cave(ci, new_roof, new_floor, rock_top_offset, rock_bottom_offset)
  cave_set(cave_roof, ci, new_roof)
  cave_set(cave_floor, ci, new_floor)
+
+ local cave_center = (new_roof + new_floor) / 2
+ local new_rock_top = nil
+ local new_rock_bottom = nil
+
+ if rock_top_offset ~= nil and rock_bottom_offset ~= nil then
+  new_rock_top = cave_center + rock_top_offset
+  new_rock_bottom = cave_center + rock_bottom_offset
+ end
+
+ cave_set(cave_rock_top, ci, new_rock_top)
+ cave_set(cave_rock_bottom, ci, new_rock_bottom)
 
  local from = max(1, ci - 4)
  local to = min(chunk_length-1, ci + 4)
@@ -545,6 +605,44 @@ function add_cave(ci, new_roof, new_floor)
    tgad_cave(cave_roof, i - 1, 0, roof),
    tgad_cave(cave_roof, i + 1, 0, roof),
   }))
+
+  local rock_top = cave_get(cave_rock_top, i)
+  local rock_bottom = cave_get(cave_rock_bottom, i)
+
+  if rock_top ~= nil and rock_bottom ~= nil then
+   cave_set(cave_rock_top_blur_heights, i, rock_top - tminmax(min, {
+    rock_top,
+    tgad_cave(cave_rock_top, i - 1, -1, rock_top),
+    tgad_cave(cave_rock_top, i - 2, -1, rock_top),
+    tgad_cave(cave_rock_top, i + 1, -1, rock_top),
+    tgad_cave(cave_rock_top, i + 2, -1, rock_top),
+   }))
+
+   cave_set(cave_rock_top_edge_heights, i, rock_top - tminmax(min, {
+    rock_top,
+    tgad_cave(cave_rock_top, i - 1, 0, rock_top),
+    tgad_cave(cave_rock_top, i + 1, 0, rock_top),
+   }))
+
+   cave_set(cave_rock_bottom_blur_heights, i, tminmax(max, {
+    rock_bottom,
+    tgad_cave(cave_rock_bottom, i - 1, 1, rock_bottom + 2),
+    tgad_cave(cave_rock_bottom, i - 2, 1, rock_bottom + 2),
+    tgad_cave(cave_rock_bottom, i + 1, 1, rock_bottom + 2),
+    tgad_cave(cave_rock_bottom, i + 2, 1, rock_bottom + 2),
+   }) - rock_bottom)
+
+   cave_set(cave_rock_bottom_edge_heights, i, tminmax(max, {
+    rock_bottom,
+    tgad_cave(cave_rock_bottom, i - 1, 0, rock_bottom),
+    tgad_cave(cave_rock_bottom, i + 1, 0, rock_bottom),
+   }) - rock_bottom)
+  else
+   cave_set(cave_rock_top_blur_heights, i, 0)
+   cave_set(cave_rock_top_edge_heights, i, 0)
+   cave_set(cave_rock_bottom_blur_heights, i, 0)
+   cave_set(cave_rock_bottom_edge_heights, i, 0)
+  end
  end
 end
 
@@ -578,7 +676,7 @@ function mode(m)
   camera_y1 = 0
   camera_y2 = camera_y1 + 128
   camera_shake = 0
-  cave_vx = 2
+  cave_vx = 4
   camera_vy = 0
   camera_ideal_y1 = camera_y1
   camera_error_y1 = 0
@@ -600,10 +698,17 @@ function mode(m)
   cave_roof = fill(chunk_length, 8)
   cave_roof_blur_colors = fill(chunk_length, 1)
   cave_roof_blur_heights = fill(chunk_length, 0)
-   cave_roof_edge_colors = fill(chunk_length, 7)
-   cave_roof_edge_heights = fill(chunk_length, 0)
+  cave_roof_edge_colors = fill(chunk_length, 7)
+  cave_roof_edge_heights = fill(chunk_length, 0)
 
-   cave_head = 1
+  cave_rock_top = {}
+  cave_rock_bottom = {}
+  cave_rock_top_blur_heights = fill(chunk_length, 0)
+  cave_rock_top_edge_heights = fill(chunk_length, 0)
+  cave_rock_bottom_blur_heights = fill(chunk_length, 0)
+  cave_rock_bottom_edge_heights = fill(chunk_length, 0)
+
+  cave_head = 1
 
    coin_height = 64
   coin_cooldown_frame = clock_frame
@@ -614,7 +719,7 @@ function mode(m)
 
   for x = 1,chunk_length do
    local slice = chunk_fn(x/chunk_length)
-   add_cave(x, slice[1], slice[2])
+   add_cave(x, slice[1], slice[2], slice[3], slice[4])
   end
 
    chunk_y1 = cave_get(cave_roof, chunk_length)
@@ -721,6 +826,13 @@ function is_space(x, y)
  end
  if y > cave_get(cave_floor, i) then
   return false
+ end
+ local rock_top = cave_get(cave_rock_top, i)
+ local rock_bottom = cave_get(cave_rock_bottom, i)
+ if rock_top ~= nil and rock_bottom ~= nil then
+  if y >= rock_top and y <= rock_bottom then
+   return false
+  end
  end
  return true
 end
@@ -845,8 +957,8 @@ function last(t)
  return t[#t]
 end
 
-function chunk(y1, y2)
- local c = {y1,y2}
+function chunk(y1, y2, rock_top, rock_bottom)
+ local c = {y1, y2, rock_top, rock_bottom}
  setmetatable(c, {
   __add = chunk_add,
   __and = chunk_and,
@@ -857,8 +969,10 @@ end
 
 function chunk_add(c1, c2)
  return chunk(
-  c1[1] + c2[1],
-  c1[2] + c2[2]
+  terrain_add_nil(c1[1], c2[1]),
+  terrain_add_nil(c1[2], c2[2]),
+  c1[3] or c2[3],
+  c1[4] or c2[4]
  )
 end
 
@@ -871,14 +985,29 @@ end
 
 function chunk_call(c, p)
  local v = {}
- for t in all(c) do
-  local y = t(p)
-  if y ~= nil then
-   add(v, y)
+ for i = 1, 2 do
+  local t = c[i]
+  if t ~= nil then
+   local y = t(p)
+   if y ~= nil then
+    add(v, y)
+   end
   end
  end
  sort(v)
+ local rock_top = nil
+ local rock_bottom = nil
+ if c[3] ~= nil then rock_top = c[3](p) end
+ if c[4] ~= nil then rock_bottom = c[4](p) end
+ add(v, rock_top)
+ add(v, rock_bottom)
  return v
+end
+
+function terrain_add_nil(t1, t2)
+ if t1 == nil then return t2 end
+ if t2 == nil then return t1 end
+ return t1 + t2
 end
 
 function tunnel(d, h)
@@ -1136,6 +1265,48 @@ function roomchunk(pinch_gap, room_width)
  )
 end
 
+function rock_shape_circle()
+ return terrain(function(p)
+  return sqrt(1 - (2*p - 1)^2)
+ end)
+end
+
+function rock_shape_linear()
+ return terrain(function(p)
+  return p
+ end)
+end
+
+function rock(p_center, width, height, offset_y, shape)
+ local half_width = width / 2
+ local half_height = height / 2
+ local p_start = p_center - half_width
+ local p_end = p_center + half_width
+ offset_y = offset_y or 0
+ shape = shape or rock_shape_circle()
+
+ return chunk(
+  nil,
+  nil,
+  terrain(function(p)
+   if p >= p_start and p <= p_end then
+    local rock_p = (p - p_start) / width
+    local taper = shape(rock_p)
+    return offset_y - half_height * taper
+   end
+   return nil
+  end),
+  terrain(function(p)
+   if p >= p_start and p <= p_end then
+    local rock_p = (p - p_start) / width
+    local taper = shape(rock_p)
+    return offset_y + half_height * taper
+   end
+   return nil
+  end)
+ )
+end
+
 function biome_rooms()
  local remaining = 4
  return {
@@ -1143,7 +1314,8 @@ function biome_rooms()
   chunk = function()
    if remaining <= 0 then return nil end
    remaining -= 1
-   return roomchunk(32, 120)
+   local rock_chunk = rock(0.5, 0.08, 20, -8 + rnd(16))
+   return roomchunk(32, 120) + rock_chunk
   end
  }
 end
@@ -1157,22 +1329,23 @@ function biome_normal()
    remaining -= 1
    local t = tunnel(0, 64)
    local r = flrrnd(8)
+   local rock_chunk = rock(0.3 + rnd(0.4), 0.1, 24, -12 + rnd(24))
    if r == 0 then
-    return tunnel(0, 128) + sinechunk(16, 0.5)
+    return tunnel(0, 128) + sinechunk(16, 0.5) + rock_chunk
    elseif r == 1 then
-    return t + zig(32) + resize1(32-rnd(64))
+    return t + zig(32) + resize1(32-rnd(64)) + rock_chunk
    elseif r == 2 then
-    return t + zag(32) + resize1(32-rnd(64))
+    return t + zag(32) + resize1(32-rnd(64)) + rock_chunk
    elseif r == 3 then
-    return t + zigzag(32) + resize1(128)
+    return t + zigzag(32) + resize1(128) + rock_chunk
    elseif r == 4 then
-    return t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+    return t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)) + rock_chunk
    elseif r == 5 then
-    return t + ubend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256))
+    return t + ubend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256)) + rock_chunk
    elseif r == 6 then
-    return t + sbend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256))
+    return t + sbend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256)) + rock_chunk
    elseif r == 7 then
-    return t + zbend(32+rnd(2), 32+rnd(2)) + resize1(32-rnd(64))
+    return t + zbend(32+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)) + rock_chunk
    end
   end
  }
