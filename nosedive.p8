@@ -117,10 +117,10 @@ function _update60()
     chunk_p = 0
     chunk_y1 = cave_y1
 
-    chunk_fn = biome.chunk()
+    chunk_fn = biome_next_chunk()
     if chunk_fn == nil then
-     biome = next_biome()
-     chunk_fn = biome.chunk()
+     next_biome()
+     chunk_fn = biome_next_chunk()
     end
 
     dbg(chunk_y1)
@@ -546,7 +546,8 @@ end
    print(debug_message[1], 0, ((i-1)*8)+96, debug_message[2])
   end
   draw_bar("cpu", stat(1), 1, 123)
-  print(cave_y1, 32, 1, 7)
+  -- print(cave_y1, 32, 1, 7)
+  print(biome_id, 1, 1, 7)
  end
 
  if draw(draw_dead) then
@@ -676,7 +677,7 @@ function mode(m)
   camera_y1 = 0
   camera_y2 = camera_y1 + 128
   camera_shake = 0
-  cave_vx = 4
+  cave_vx = 1
   camera_vy = 0
   camera_ideal_y1 = camera_y1
   camera_error_y1 = 0
@@ -688,7 +689,7 @@ function mode(m)
   chunk_length = 128 * cave_vx
   chunk_progress = 0
 
-  biome = biome_rooms()
+  biome_rooms()
 
   cave_floor = fill(chunk_length, 118)
   cave_floor_blur_colors = fill(chunk_length, 1)
@@ -1308,54 +1309,50 @@ function rock(p_center, width, height, offset_y, shape)
 end
 
 function biome_rooms()
- local remaining = 4
- return {
-  id = "rooms",
-  chunk = function()
-   if remaining <= 0 then return nil end
-   remaining -= 1
-   local rock_chunk = rock(0.5, 0.08, 20, -8 + rnd(16))
-   return roomchunk(32, 120) + rock_chunk
-  end
- }
+ local remaining = 1
+ biome_id = "rooms"
+ biome_next_chunk = function()
+  if remaining <= 0 then return nil end
+  remaining -= 1
+  local rock_chunk = rock(0.5, 0.08, 20, -8 + rnd(16))
+  return roomchunk(32, 120) + rock_chunk
+ end
 end
 
 function biome_normal()
  local remaining = 4
- return {
-  id = "normal",
-  chunk = function()
-   if remaining <= 0 then return nil end
-   remaining -= 1
-   local t = tunnel(0, 64)
-   local r = flrrnd(8)
-   local rock_chunk = rock(0.3 + rnd(0.4), 0.1, 24, -12 + rnd(24))
-   if r == 0 then
-    return tunnel(0, 128) + sinechunk(16, 0.5) + rock_chunk
-   elseif r == 1 then
-    return t + zig(32) + resize1(32-rnd(64)) + rock_chunk
-   elseif r == 2 then
-    return t + zag(32) + resize1(32-rnd(64)) + rock_chunk
-   elseif r == 3 then
-    return t + zigzag(32) + resize1(128) + rock_chunk
-   elseif r == 4 then
-    return t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)) + rock_chunk
-   elseif r == 5 then
-    return t + ubend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256)) + rock_chunk
-   elseif r == 6 then
-    return t + sbend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256)) + rock_chunk
-   elseif r == 7 then
-    return t + zbend(32+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)) + rock_chunk
-   end
+ biome_id = "normal"
+ biome_next_chunk = function()
+  if remaining <= 0 then return nil end
+  remaining -= 1
+  local t = tunnel(0, 64)
+  local r = flrrnd(8)
+  local rock_chunk = rock(0.3 + rnd(0.4), 0.1, 24, -12 + rnd(24))
+  if r == 0 then
+   return tunnel(0, 128) + sinechunk(16, 0.5) + rock_chunk
+  elseif r == 1 then
+   return t + zig(32) + resize1(32-rnd(64)) + rock_chunk
+  elseif r == 2 then
+   return t + zag(32) + resize1(32-rnd(64)) + rock_chunk
+  elseif r == 3 then
+   return t + zigzag(32) + resize1(128) + rock_chunk
+  elseif r == 4 then
+   return t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)) + rock_chunk
+  elseif r == 5 then
+   return t + ubend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256)) + rock_chunk
+  elseif r == 6 then
+   return t + sbend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256)) + rock_chunk
+  elseif r == 7 then
+   return t + zbend(32+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)) + rock_chunk
   end
- }
+ end
 end
 
 function next_biome()
- if biome.id == "rooms" then
-  return biome_normal()
+ if biome_id == "rooms" then
+  biome_normal()
  else
-  return biome_rooms()
+  biome_rooms()
  end
 end
 
