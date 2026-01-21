@@ -1,5 +1,5 @@
 pico-8 cartridge // http://www.pico-8.com
-version 35
+version 43
 __lua__
 function _init()
  update_mode = 0
@@ -365,7 +365,7 @@ function _draw()
   sspr(0, 64, 64, 12, 30, 48)
 
   if loop(clock_frame, 64, 2) == 0 then
-   print("tap to start", 38, 64)
+   print("tap to start", 39, 64)
   end
  end
 
@@ -1024,6 +1024,20 @@ function tunnel(d, h)
  )
 end
 
+function taper_in(from_h, to_h)
+ local exp = (from_h - to_h) / 2
+ local roof = first_half(static(0))
+  + second_half(cosinewave(-exp/2, 0.5) + static(exp/2))
+ return chunk(roof, mirror(roof, from_h))
+end
+
+function taper_out(from_h, to_h)
+ local exp = (to_h - from_h) / 2
+ local roof = first_half(cosinewave(exp/2, 0.5) + static(-exp/2))
+  + second_half(static(-exp))
+ return chunk(roof, mirror(roof, from_h))
+end
+
 function zig(y)
  return chunk(
   linear(-y) % range(0, 0.5) + linear(y) % range(0.5, 1),
@@ -1123,10 +1137,7 @@ function terrain_add(t1, t2)
   function(p)
    local y1 = t1(p)
    local y2 = t2(p)
-   if y1 == nil or y2 == nil then
-    return nil
-   end
-   return y1 + y2
+   return (y1 or 0) + (y2 or 0)
   end
  )
 end
@@ -1171,6 +1182,14 @@ function invert()
    return -1
   end
  )
+end
+
+function mirror(t, center)
+ return terrain(function(p)
+  local y = t(p)
+  if y == nil then return nil end
+  return center - y
+ end)
 end
 
 function linear(y)
@@ -1223,6 +1242,20 @@ function reverse()
  )
 end
 
+function first_half(t)
+ return terrain(function(p)
+  if p >= 0.5 then return nil end
+  return t(p * 2)
+ end)
+end
+
+function second_half(t)
+ return terrain(function(p)
+  if p < 0.5 then return nil end
+  return t((p - 0.5) * 2)
+ end)
+end
+
 function fragment(x, y, r, d)
  return (
   static(y)
@@ -1266,10 +1299,8 @@ end
 
 function roomchunk(pinch_gap, room_width)
  local expansion = (room_width - pinch_gap) / 2
- return chunk(
-  cosinewave(expansion/2, 1) + static(-expansion/2),
-  cosinewave(-expansion/2, 1) + static(pinch_gap + expansion/2)
- )
+ local roof = cosinewave(expansion/2, 1) + static(-expansion/2)
+ return chunk(roof, mirror(roof, pinch_gap))
 end
 
 function rock_shape_circle()
@@ -1326,9 +1357,33 @@ end
 function biome_rooms()
  biome_id = "rooms"
  biome_next_chunk = function()
-  if biome_chunk_count < 1 then
+  if biome_chunk_count == 0 then
+   return taper_in(110, 32)
+  elseif biome_chunk_count == 1 then
    local rock_chunk = rock(0.5, 0.08, 20, -8 + rnd(16))
    return roomchunk(32, 120) + rock_chunk
+  elseif biome_chunk_count == 2 then
+   return taper_out(32, 110)
+  end
+ end
+end
+
+function biome_zigzag()
+ biome_id = "zigzag"
+ biome_next_chunk = function()
+  local rock_chunk = rock(0.5, 0.1, 10, -20 + rnd(20))
+  if biome_chunk_count == 0 then
+   return taper_in(110, 96)
+  elseif biome_chunk_count == 1 then
+   return tunnel(0, 96) + ubend(32, 32) + rock_chunk
+  elseif biome_chunk_count == 2 then
+   return tunnel(0, 86) + zig(128) + rock_chunk
+  elseif biome_chunk_count == 3 then
+   return tunnel(0, 76) + zigzag(32) + rock_chunk
+  elseif biome_chunk_count == 4 then
+   return tunnel(0, 96) + zigzag(-32) + rock_chunk
+  elseif biome_chunk_count == 5 then
+   return taper_out(96, 110)
   end
  end
 end
@@ -1337,26 +1392,8 @@ function biome_normal()
  biome_id = "normal"
  biome_next_chunk = function()
   if biome_chunk_count < 1 then
-   local t = tunnel(0, 64)
-   local r = flrrnd(8)
-   local rock_chunk = rock(0.3 + rnd(0.4), 0.1, 24, -12 + rnd(24))
-   if r == 0 then
-    return tunnel(0, 128) + sinechunk(16, 0.5) + rock_chunk
-   elseif r == 1 then
-    return t + zig(32) + resize1(32-rnd(64)) + rock_chunk
-   elseif r == 2 then
-    return t + zag(32) + resize1(32-rnd(64)) + rock_chunk
-   elseif r == 3 then
-    return t + zigzag(32) + resize1(128) + rock_chunk
-   elseif r == 4 then
-    return t + nbend(16+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)) + rock_chunk
-   elseif r == 5 then
-    return t + ubend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256)) + rock_chunk
-   elseif r == 6 then
-    return t + sbend(16+rnd(2), 32+rnd(2)) + resize1(128-rnd(256)) + rock_chunk
-   elseif r == 7 then
-    return t + zbend(32+rnd(2), 32+rnd(2)) + resize1(32-rnd(64)) + rock_chunk
-   end
+   local rock_chunk = rock(0.5, 0.1, 24, -12 + rnd(24))
+   return tunnel(0, 110) + sinechunk(16, 0.5) + rock_chunk
   end
  end
 end
@@ -1364,6 +1401,8 @@ end
 function next_biome()
  biome_chunk_count = 0
  if biome_id == "start" then
+  biome_zigzag()
+ elseif biome_id == "zigzag" then
   biome_rooms()
  elseif biome_id == "rooms" then
   biome_normal()
